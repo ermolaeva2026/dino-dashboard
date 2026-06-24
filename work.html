@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRK-2026-DS · ДиноПарк PMO Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#0f1117;--bg2:#161b26;--bg3:#1e2535;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#e8eaf0;--text2:#8b90a0;--text3:#555b6e;
+  --red:#e24b4a;--red-bg:rgba(226,75,74,0.12);--red-bd:rgba(226,75,74,0.3);
+  --amb:#ef9f27;--amb-bg:rgba(239,159,39,0.12);--amb-bd:rgba(239,159,39,0.3);
+  --grn:#39c474;--grn-bg:rgba(57,196,116,0.1);--grn-bd:rgba(57,196,116,0.3);
+  --blu:#4e9af1;--blu-bg:rgba(78,154,241,0.1);--blu-bd:rgba(78,154,241,0.3);
+  --pur:#8b7cf8;--pur-bg:rgba(139,124,248,0.1);--pur-bd:rgba(139,124,248,0.3);
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;line-height:1.5;min-height:100vh}
+
+/* TOPBAR */
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border2);padding:11px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:200}
+.topbar-id{font-family:var(--mono);font-size:10px;color:var(--blu);background:var(--blu-bg);padding:3px 8px;border-radius:3px;border:1px solid var(--blu-bd);flex-shrink:0}
+.topbar-title{font-weight:600;font-size:14px;flex:1}
+.topbar-meta{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.topbar-meta span{color:var(--text2)}
+.tab-btn{font-family:var(--mono);font-size:10px;padding:5px 14px;border:1px solid var(--border2);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{background:var(--bg3);color:var(--text)}
+.tab-btn.active{background:var(--blu-bg);border-color:var(--blu-bd);color:var(--blu)}
+
+.wrap{max-width:1300px;margin:0 auto;padding:20px 24px 40px}
+.view{display:none}.view.active{display:block}
+
+/* ALERTS */
+.alerts{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+.alert{display:flex;align-items:flex-start;gap:10px;padding:9px 13px;border-radius:6px;font-size:12px;border:1px solid}
+.alert.red{background:var(--red-bg);border-color:var(--red-bd);color:#f4a4a3}
+.alert.amb{background:var(--amb-bg);border-color:var(--amb-bd);color:#f5c97e}
+.alert.info{background:var(--blu-bg);border-color:var(--blu-bd);color:#93bef5}
+.alert b{font-weight:600}
+.alert-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.mc{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px 15px}
+.mc-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.mc-val{font-family:var(--mono);font-size:22px;font-weight:500;line-height:1.1}
+.mc-sub{font-size:10px;color:var(--text3);margin-top:3px}
+.c-red{color:var(--red)}.c-amb{color:var(--amb)}
+
+/* SECTION */
+.sec{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin:18px 0 9px;display:flex;align-items:center;gap:10px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* PHASES */
+.phases{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px}
+.ph{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 11px 8px}
+.ph-nm{font-size:10px;color:var(--text2);margin-bottom:6px;min-height:26px;line-height:1.35}
+.ph-pct{font-family:var(--mono);font-size:20px;font-weight:500;margin-bottom:2px}
+.ph-dt{font-size:9px;color:var(--text3);margin-bottom:5px}
+.bar{height:2px;background:var(--border2);border-radius:2px;overflow:hidden}
+.bar-f{height:2px;border-radius:2px}
+.ph.done{border-color:var(--grn-bd)}.ph.done .ph-pct{color:var(--grn)}.ph.done .bar-f{background:var(--grn)}
+.ph.act{border-color:var(--blu-bd)}.ph.act .ph-pct{color:var(--blu)}.ph.act .bar-f{background:var(--blu)}
+.ph-stats{display:flex;align-items:center;gap:6px;margin-top:4px}
+.ph-stat{font-family:var(--mono);font-size:9px;color:var(--text3)}
+.ph-stat b{color:var(--text2)}
+.ph-stat.grn b{color:var(--grn)}
+/* GANTT done */
+.gantt-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:12px;overflow-x:auto}
+.gantt-head{display:flex;gap:0;margin-bottom:6px;margin-left:160px}
+.gantt-month{font-family:var(--mono);font-size:8px;color:var(--text3);text-align:center;flex-shrink:0;letter-spacing:.04em}
+.gantt-row{display:flex;align-items:center;gap:0;margin-bottom:3px;min-height:18px}
+.gantt-lbl{font-size:10px;color:var(--text2);width:160px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.gantt-lbl .ph-tag{margin-right:4px;font-size:8px}
+.gantt-track{flex:1;position:relative;height:16px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.gantt-bar{position:absolute;height:100%;border-radius:3px;top:0;background:var(--grn);opacity:0.8}
+.gantt-bar.ph{background:var(--grn);opacity:0.5;height:8px;top:4px}
+.gantt-row.ms-row .gantt-track{background:transparent}
+.gantt-ms{position:absolute;width:8px;height:8px;background:var(--grn);transform:rotate(45deg);top:4px;margin-left:-4px;border-radius:1px}
+.gantt-sep{height:1px;background:var(--border);margin:5px 0}
+.ph.idle .ph-pct{color:var(--text3)}.ph.idle .bar-f{background:var(--border2)}
+
+/* TWO COL */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px 15px}
+.panel-title{font-size:10px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:11px}
+
+.cp-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+.cp-row:last-child{border-bottom:none}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot.done{background:var(--grn)}.dot.hot{background:var(--red)}.dot.act{background:var(--blu)}.dot.idle{background:var(--text3)}
+.cp-nm{flex:1;color:var(--text);font-size:11px}
+.cp-dt{font-family:var(--mono);font-size:10px;color:var(--text3);white-space:nowrap}
+
+.zi-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)}
+.zi-row:last-child{border-bottom:none}
+.zi-id{font-family:var(--mono);font-size:9px;color:var(--text3);min-width:46px}
+.zi-nm{flex:1;color:var(--text);font-size:11px}
+
+/* BADGES */
+.bdg{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;border:1px solid}
+.bdg-lg{font-size:11px;padding:2px 7px}
+.b-red{background:var(--red-bg);color:var(--red);border-color:var(--red-bd)}
+.b-grn{background:var(--grn-bg);color:var(--grn);border-color:var(--grn-bd)}
+.b-amb{background:var(--amb-bg);color:var(--amb);border-color:var(--amb-bd)}
+.b-blu{background:var(--blu-bg);color:var(--blu);border-color:var(--blu-bd)}
+.b-gray{background:rgba(255,255,255,0.04);color:var(--text3);border-color:var(--border)}
+.b-pur{background:var(--pur-bg);color:var(--pur);border-color:var(--pur-bd)}
+
+/* TABLES */
+.tbl-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+thead th{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--text3);text-align:left;padding:7px 10px;background:var(--bg3);border-bottom:1px solid var(--border2);letter-spacing:.06em;text-transform:uppercase}
+tbody td{padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,0.02)}
+.blk-row td{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--text3);background:var(--bg3);padding:4px 10px;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.pb{display:flex;align-items:center;gap:5px}
+.pb-bg{flex:1;height:2px;background:var(--border2);border-radius:2px;overflow:hidden;min-width:30px}
+.pb-f{height:2px;border-radius:2px;background:var(--blu)}
+.pb-f.g{background:var(--grn)}.pb-f.a{background:var(--amb)}
+.pb-n{font-family:var(--mono);font-size:11px;color:var(--text3);min-width:26px}
+.ph-tag{font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px;background:var(--blu-bg);color:var(--blu);border:1px solid var(--blu-bd);white-space:nowrap;display:inline-block}
+.empty-td{color:var(--text3);font-style:italic;text-align:center;padding:14px 10px}
+
+/* WEEK NAV */
+.wnav{display:flex;align-items:center;gap:7px}
+.wnav button{font-family:var(--mono);font-size:11px;padding:3px 10px;border:1px solid var(--border2);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;transition:background .15s}
+.wnav button:hover{background:var(--bg3)}
+.wlbl{font-family:var(--mono);font-size:11px;color:var(--text2);white-space:nowrap}
+
+/* ACCORDION */
+.acc-hdr{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;margin:18px 0 0;padding:4px 0}
+.acc-hdr:hover .acc-lbl{color:var(--text2)}
+.acc-lbl{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
+.acc-cnt{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.acc-line{flex:1;height:1px;background:var(--border)}
+.acc-chev{font-size:11px;color:var(--text3);transition:transform .22s;flex-shrink:0}
+.acc-chev.open{transform:rotate(180deg)}
+.acc-body{overflow:hidden;transition:max-height .28s ease,opacity .22s ease,margin-top .22s ease;max-height:3000px;opacity:1;margin-top:9px}
+.acc-body.closed{max-height:0;opacity:0;margin-top:0;pointer-events:none}
+
+/* NEEDS ACTION */
+.na-red{color:var(--red)}
+.na-dt{font-family:var(--mono);font-size:10px}
+
+/* DOCS */
+.docs-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.docs-toolbar input{flex:1;min-width:200px;font-family:var(--mono);font-size:11px;padding:7px 12px;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;color:var(--text);outline:none}
+.docs-toolbar input:focus{border-color:var(--blu-bd)}
+.docs-toolbar input::placeholder{color:var(--text3)}
+.filter-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border:1px solid var(--border2);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;transition:all .15s}
+.filter-btn:hover{background:var(--bg3);color:var(--text)}
+.filter-btn.active{background:var(--blu-bg);border-color:var(--blu-bd);color:var(--blu)}
+.doc-group-label{font-family:var(--mono);font-size:9px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;padding:14px 0 6px;display:flex;align-items:center;gap:10px}
+.doc-group-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.doc-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px 15px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s}
+.doc-card:hover{border-color:var(--border2)}
+.doc-card.hidden{display:none}
+.doc-card-top{display:flex;align-items:flex-start;gap:10px}
+.doc-icon{font-size:22px;flex-shrink:0;line-height:1}
+.doc-info{flex:1;min-width:0}
+.doc-code{font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:3px}
+.doc-name{font-size:12px;font-weight:500;color:var(--text);line-height:1.35}
+.doc-card-bottom{display:flex;align-items:center;gap:8px}
+.doc-open{font-family:var(--mono);font-size:10px;padding:4px 10px;border:1px solid var(--border2);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap}
+.doc-open:hover{background:var(--blu-bg);border-color:var(--blu-bd);color:var(--blu)}
+.docs-empty{color:var(--text3);font-style:italic;padding:24px;text-align:center;font-family:var(--mono);font-size:11px}
+
+@media(max-width:900px){
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .phases{grid-template-columns:repeat(2,1fr)}
+  .two{grid-template-columns:1fr}
+  .doc-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-id">PRK-2026-DS</span>
+  <span class="topbar-title">Модернизация ДиноПарка и Дино-Сафари</span>
+  <span class="topbar-meta">КСГ <span id="ksg-ver">v02.06</span> · <span id="ksg-date">02.06.2026</span> · просмотр <span id="view-date"></span></span>
+  <button class="tab-btn active" onclick="showView('dashboard',this)">Дашборд</button>
+  <button class="tab-btn" onclick="showView('docs',this)">Документы</button>
+</div>
+
+<div class="wrap">
+
+<!-- DASHBOARD -->
+<div class="view active" id="view-dashboard">
+  <div class="alerts" id="alerts"></div>
+  <div class="metrics" id="metrics"></div>
+  <div class="sec">Прогресс по фазам</div>
+  <div class="phases" id="ph1" style="margin-bottom:8px"></div>
+  <div class="phases" id="ph2"></div>
+  <div class="sec" style="margin-top:18px">Управление проектом</div>
+  <div class="two">
+    <div class="panel"><div class="panel-title">Критический путь</div><div id="cp"></div></div>
+    <div class="panel"><div class="panel-title" id="zi-title">Запросы на изменение</div><div id="zi"></div></div>
+  </div>
+  <div class="sec">В работе прямо сейчас</div>
+  <div class="tbl-wrap">
+    <table><thead><tr>
+      <th style="width:42%">Задача</th>
+      <th style="width:10%">Старт</th><th style="width:10%">Финиш</th>
+      <th style="width:20%">Прогресс</th><th style="width:18%">Статус</th>
+    </tr></thead><tbody id="active-b"></tbody></table>
+  </div>
+  <div class="sec">
+    <div class="wnav">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase">Текущая неделя</span>
+      <button onclick="pw()">←</button>
+      <span class="wlbl" id="wlbl"></span>
+      <button onclick="nw()">→</button>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr>
+      <th style="width:42%">Задача</th>
+      <th style="width:10%">Старт</th><th style="width:10%">Финиш</th>
+      <th style="width:20%">Прогресс</th><th style="width:18%">Статус</th>
+    </tr></thead><tbody id="week-b"></tbody></table>
+  </div>
+
+  <!-- ACCORDION: следующая неделя -->
+  <div class="acc-hdr" onclick="toggleAcc()">
+    <span class="acc-lbl" id="next-lbl">Следующая неделя</span>
+    <span class="acc-cnt" id="acc-cnt"></span>
+    <div class="acc-line"></div>
+    <span class="acc-chev open" id="acc-chev">▾</span>
+  </div>
+  <div class="acc-body" id="acc-body">
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th style="width:42%">Задача</th>
+        <th style="width:10%">Старт</th><th style="width:10%">Финиш</th>
+        <th style="width:20%">Прогресс</th><th style="width:18%">Статус</th>
+      </tr></thead><tbody id="next-b"></tbody></table>
+    </div>
+  </div>
+
+  <div class="sec">Требуют актуализации в КСГ</div>
+  <div class="tbl-wrap">
+    <table><thead><tr>
+      <th style="width:50%">Задача</th>
+      <th style="width:16%">Дедлайн</th><th style="width:8%">%</th><th style="width:26%">Действие</th>
+    </tr></thead><tbody id="na-b"></tbody></table>
+  </div>
+
+  <!-- ВЫПОЛНЕННЫЕ ЗАДАЧИ -->
+  <div class="sec" style="margin-top:20px">Выполненные задачи</div>
+  <div id="done-gantt" style="margin-bottom:8px"></div>
+  <div class="acc-hdr" onclick="toggleDone()" style="margin-top:0">
+    <span class="acc-lbl">Таблица выполненных</span>
+    <span class="acc-cnt" id="done-cnt"></span>
+    <div class="acc-line"></div>
+    <span class="acc-chev" id="done-chev">▼</span>
+  </div>
+  <div class="acc-body closed" id="done-body">
+    <div class="tbl-wrap">
+      <table><thead><tr>
+        <th style="width:42%">Задача</th>
+        <th style="width:10%">Старт</th><th style="width:10%">Финиш</th>
+        <th style="width:20%">Прогресс</th><th style="width:18%">Статус</th>
+      </tr></thead><tbody id="done-b"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- DOCS -->
+<div class="view" id="view-docs">
+  <div class="docs-toolbar">
+    <input type="text" id="doc-search" placeholder="Поиск по названию или коду..." oninput="filterDocs()">
+    <button class="filter-btn active" onclick="setFilter('all',this)">Все</button>
+    <button class="filter-btn" onclick="setFilter('init',this)">Инициация</button>
+    <button class="filter-btn" onclick="setFilter('plan',this)">Планирование</button>
+    <button class="filter-btn" onclick="setFilter('exec',this)">Реализация</button>
+    <button class="filter-btn" onclick="setFilter('close',this)">Завершение</button>
+  </div>
+  <div id="doc-container"></div>
+  <div class="docs-empty" id="docs-empty" style="display:none">Документы не найдены</div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// ════════════════════════════════════════════════════════
+// DATA — обновляется Cowork при каждом новом КСГ
+// ════════════════════════════════════════════════════════
+const KSG_VER  = 'v24.06';
+const KSG_DATE = '24.06.2026';
+const REF_DATE = '2026-06-24';
+const PHASES = [
+  {nm:'Ф.0 Инициация',pct:100,s:'20.04',e:'13.05',cls:'done'},
+  {nm:'Ф.1 Бюджетирование',pct:100,s:'14.05',e:'05.06',cls:'done'},
+  {nm:'Ф.2 Проектирование',pct:100,s:'28.05',e:'29.05',cls:'done'},
+  {nm:'Ф.3 ВЭД аниматроники',pct:22,s:'19.05',e:'26.08',cls:'act'},
+  {nm:'Ф.4 Реставрация',pct:39,s:'05.05',e:'30.06',cls:'act'},
+  {nm:'Ф.5 СМР',pct:52,s:'21.05',e:'03.08',cls:'act'},
+  {nm:'Ф.6 Детские зоны',pct:51,s:'27.05',e:'11.07',cls:'act'},
+  {nm:'Ф.7 Электромонтаж',pct:83,s:'19.05',e:'20.07',cls:'act'},
+  {nm:'Ф.8 Монтаж аниматр.',pct:0,s:'13.08',e:'26.08',cls:'idle'},
+  {nm:'Ф.9 Grand Opening',pct:0,s:'17.08',e:'02.09',cls:'idle'}
+];
+const CRIT = [
+  {nm:'Договор и спецификация подписаны',dt:'29.05.2026',st:'done',b:'Выполнено',bc:'b-grn'},
+  {nm:'Аванс 1 ПИ (3 850 000 ₽)',dt:'08.06.2026',st:'done',b:'Выполнено',bc:'b-grn'},
+  {nm:'Производство 12 аниматроников',dt:'до 06.07',st:'act',b:'В работе',bc:'b-blu'},
+  {nm:'Аванс 2 ПИ (5 000 000 ₽)',dt:'20–31.07',st:'idle',b:'Ожидание',bc:'b-gray'},
+  {nm:'Аниматроники на площадке',dt:'16.08.2026',st:'idle',b:'Ожидание',bc:'b-gray'},
+  {nm:'🏁 Grand Opening',dt:'01.09.2026',st:'hot',b:'Дедлайн',bc:'b-red'}
+];
+const ZI = [
+  {id:'CR-01',nm:'Актуализация цен по сметам — увеличение бюджета ра…',bc:'b-amb',st:'На одобрении'},
+  {id:'CR-02',nm:'Управленческий резерв 10% к бюджету',bc:'b-amb',st:'На одобрении'},
+  {id:'CR-03',nm:'Исключение рисков R-11 и R-25 из реестра',bc:'b-grn',st:'Внесено'},
+  {id:'CR-04',nm:'Переоценка уровней R-23 и R-24',bc:'b-grn',st:'Внесено'},
+  {id:'CR-05',nm:'Риск-ориентированный резерв (Вариант 2)',bc:'b-amb',st:'На решении'},
+  {id:'CR-06',nm:'Исключение из КСГ (инактивация) задач №181 «Протяж…',bc:'b-grn',st:'Внесено'}
+];
+const NEEDS_ACTION = [
+  {nm:'1 этап. Покраска настила до открываемого участка',ph:'Ф.5',blk:'Монтаж новой дорожки',dl:'30.05.2026',pct:25,act:'Завершить / закрыть в КСГ',cls:'amb'},
+  {nm:'Прокладка электрокабелей для фигур, до альпак и страус-парка',ph:'Ф.7',blk:'Электросети',dl:'04.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'№14 Амаргазавр (черный)',ph:'Ф.5',blk:'Перенос динозавров в ДиноПарке',dl:'12.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'№13 Амаргазавр (большой)',ph:'Ф.5',blk:'Перенос динозавров в ДиноПарке',dl:'16.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'№18 Глиптодон',ph:'Ф.5',blk:'1 этап. Перенос динозавров',dl:'17.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'Монтаж металлического борта по периметру площадки в зоне "Археологическая песочница"',ph:'Ф.6',blk:'Укладка покрытия',dl:'17.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'Птеродактиль 2 шт.',ph:'Ф.5',blk:'1 этап. Перенос динозавров',dl:'18.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'Закупка рукомойника',ph:'Ф.6',blk:'Закупка  для детских зон',dl:'18.06.2026',pct:50,act:'Завершить / закрыть в КСГ',cls:'amb'},
+  {nm:'2 этап. Покраска настила до открываемого участка',ph:'Ф.5',blk:'2 этап: замена угла у скелета',dl:'18.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'Установка МАФов на площадке',ph:'Ф.6',blk:'Изготовление МАФов',dl:'19.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'Замена двухслойных тростниковых матов',ph:'Ф.5',blk:'Замена забора',dl:'19.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'},
+  {nm:'Прокладка водоснабжения и водоотведения для детского рукомойника',ph:'Ф.6',blk:'Водоснабжение и оборудование',dl:'21.06.2026',pct:0,act:'Начать или перенести срок',cls:'red'}
+];
+const ALL_TASKS = [
+  {ph:'Ф.0',blk:'—',nm:'Подбор новых фигур (для ВЭД)',s:'2026-04-20',e:'2026-04-23',pct:100,ms:false},
+  {ph:'Ф.0',blk:'—',nm:'Согласование плана модернизации ДиноПарка и Диносафари',s:'2026-04-24',e:'2026-04-28',pct:100,ms:false},
+  {ph:'Ф.0',blk:'—',nm:'Карточка инициативы + Brief',s:'2026-05-06',e:'2026-05-07',pct:100,ms:false},
+  {ph:'Ф.0',blk:'—',nm:'Экономобоснование + финмодель',s:'2026-05-07',e:'2026-05-08',pct:100,ms:false},
+  {ph:'Ф.0',blk:'—',nm:'Паспорт проекта / Устав',s:'2026-05-08',e:'2026-05-12',pct:100,ms:false},
+  {ph:'Ф.0',blk:'—',nm:'Утверждение Кураторским комитетом',s:'2026-05-12',e:'2026-05-13',pct:100,ms:false},
+  {ph:'Ф.0',blk:'—',nm:'ВЕХА: Проект утвержден',s:'2026-05-13',e:'2026-05-13',pct:100,ms:true},
+  {ph:'Ф.1',blk:'—',nm:'Финальная корректировка смет',s:'2026-05-14',e:'2026-05-28',pct:100,ms:false},
+  {ph:'Ф.1',blk:'—',nm:'ВЕХА: Финансирование открыто',s:'2026-05-28',e:'2026-06-05',pct:100,ms:false},
+  {ph:'Ф.2',blk:'—',nm:'План-схема расположения 8 переносимых фигур',s:'2026-05-28',e:'2026-05-28',pct:100,ms:false},
+  {ph:'Ф.2',blk:'—',nm:'План-схема расположения 12 новых фигур',s:'2026-05-29',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.2',blk:'—',nm:'ВЕХА: План-схемы подготовлены, переданы в работу',s:'2026-05-29',e:'2026-05-29',pct:100,ms:true},
+  {ph:'Ф.3',blk:'Договорные отношения с ПИ',nm:'Договор согласован и заключен',s:'2026-05-19',e:'2026-05-19',pct:100,ms:false},
+  {ph:'Ф.3',blk:'Договорные отношения с ПИ',nm:'Спецификация подписана',s:'2026-05-29',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.3',blk:'Договорные отношения с ПИ',nm:'ВЕХА: договор и спецификация подписаны',s:'2026-05-29',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.3',blk:'Платежи',nm:'Первый авансовый платеж - 3 850 000 р., в течение 5 рабочих дней после подписания Спецификации',s:'2026-06-08',e:'2026-06-08',pct:100,ms:false},
+  {ph:'Ф.3',blk:'Платежи',nm:'Второй авансовый платеж - 5 000 000 р., в течение 10 рабочих дней после уведомления о готовности к отгрузке',s:'2026-07-20',e:'2026-07-31',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Платежи',nm:'Окончательный расчёт - 700 178,91 р., в течение 5 рабочих дней после подписания Сторонами УПД',s:'2026-08-20',e:'2026-08-26',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Платежи',nm:'ВЕХА: платежи осуществлены',s:'2026-08-26',e:'2026-08-26',pct:0,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Внесение аванса ПИ по инвойсу для запуска производства',s:'2026-05-26',e:'2026-05-26',pct:100,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Производство 12 аниматроников (~40 дней)',s:'2026-05-27',e:'2026-07-06',pct:50,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №1',s:'2026-06-03',e:'2026-06-03',pct:100,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №2',s:'2026-06-09',e:'2026-06-09',pct:100,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №3',s:'2026-06-15',e:'2026-06-15',pct:100,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №4',s:'2026-06-23',e:'2026-06-23',pct:100,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №5',s:'2026-06-30',e:'2026-06-30',pct:0,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №6',s:'2026-07-07',e:'2026-07-07',pct:0,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №7',s:'2026-07-07',e:'2026-07-07',pct:0,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Контрольная точка производства №8',s:'2026-07-07',e:'2026-07-07',pct:0,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'ВЕХА: получено уведомление о готовности аниматроников',s:'2026-07-06',e:'2026-07-06',pct:0,ms:true},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Окончательный расчет между ПИ и Производителем, в течение 10 рабочих дней после уведомления о готовности к отгрузке',s:'2026-07-06',e:'2026-07-17',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Резерв на производство',s:'2026-07-06',e:'2026-07-13',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Доставка из Китая в РФ (~30 дней)',s:'2026-07-06',e:'2026-08-05',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Резерв на доставку',s:'2026-08-05',e:'2026-08-08',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Таможенное оформление',s:'2026-08-08',e:'2026-08-09',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Резерв на таможню',s:'2026-08-09',e:'2026-08-11',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'Доставка в парк',s:'2026-08-11',e:'2026-08-13',pct:0,ms:false},
+  {ph:'Ф.3',blk:'Производство и поставка аниматроников',nm:'ВЕХА: Аниматроники на площадке парка',s:'2026-08-13',e:'2026-08-13',pct:0,ms:true},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'Финальный обход и фотофиксация фигур',s:'2026-05-05',e:'2026-05-06',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'Оценка стоимости работ (Березин)',s:'2026-05-07',e:'2026-05-12',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'Клининг - 32 динозавра, 4 МАФ',s:'2026-05-15',e:'2026-05-19',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'ВЕХА: Динозавры и МАФ подготовлены к реставрации',s:'2026-05-19',e:'2026-05-19',pct:100,ms:true},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'Утилизация фигуры - Пингвин',s:'2026-05-19',e:'2026-05-19',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'ВЕХА: Утилизиция осуществлена',s:'2026-05-19',e:'2026-05-19',pct:100,ms:true},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'Подготовка приложения к договору оказания услуг (Березин)',s:'2026-05-19',e:'2026-05-21',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Подготовка к реставрации',nm:'ВЕХА: Работы начаты',s:'2026-05-19',e:'2026-05-19',pct:100,ms:true},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'Реставрация МАФов и динозавров (ДиноПарк, Дино-Сафари)',s:'2026-05-19',e:'2026-06-30',pct:20,ms:false},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'Контрольная точка производства №1',s:'2026-05-29',e:'2026-05-29',pct:100,ms:true},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'Контрольная точка производства №2',s:'2026-06-10',e:'2026-06-10',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'Контрольная точка производства №3',s:'2026-06-15',e:'2026-06-15',pct:100,ms:false},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'Контрольная точка производства №4',s:'2026-06-23',e:'2026-06-23',pct:0,ms:true},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'Контрольная точка производства №5',s:'2026-06-30',e:'2026-06-30',pct:0,ms:true},
+  {ph:'Ф.4',blk:'Реставрационные работы (Березин)',nm:'ВЕХА: реставрационные работы завершены',s:'2026-06-30',e:'2026-06-30',pct:0,ms:true},
+  {ph:'Ф.5',blk:'1 этап. Перенос динозавров',nm:'№18 Глиптодон',s:'2026-06-17',e:'2026-06-17',pct:0,ms:false},
+  {ph:'Ф.5',blk:'1 этап. Перенос динозавров',nm:'Птеродактиль 2 шт.',s:'2026-06-18',e:'2026-06-18',pct:0,ms:false},
+  {ph:'Ф.5',blk:'1 этап. Перенос динозавров',nm:'ВЕХА: 1 этап перемещения завершен',s:'2026-06-18',e:'2026-06-18',pct:0,ms:true},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№8 Титанобоа',s:'2026-07-29',e:'2026-07-29',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№31 Платибелодон',s:'2026-07-29',e:'2026-07-29',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№11 Эдмонтозавр',s:'2026-07-30',e:'2026-07-30',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№22 Паразауролоф',s:'2026-07-31',e:'2026-07-31',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№19 Пахицефалозавр',s:'2026-08-01',e:'2026-08-01',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№10 Вуерозавр',s:'2026-08-02',e:'2026-08-02',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'№16 Олоротитан',s:'2026-08-03',e:'2026-08-03',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'ВЕХА: 2 этап перемещения завершен',s:'2026-08-03',e:'2026-08-03',pct:0,ms:true},
+  {ph:'Ф.5',blk:'2 этап. Перенос динозавров',nm:'ВЕХА: Перенос динозавров в Дино-Сафари завершен',s:'2026-08-03',e:'2026-08-03',pct:0,ms:true},
+  {ph:'Ф.5',blk:'Монтаж новой дорожки',nm:'Закупка материалов для настила',s:'2026-05-21',e:'2026-05-23',pct:100,ms:false},
+  {ph:'Ф.5',blk:'Монтаж новой дорожки',nm:'Монтаж нового участка настила',s:'2026-05-23',e:'2026-05-30',pct:100,ms:false},
+  {ph:'Ф.5',blk:'Монтаж новой дорожки',nm:'1 этап. Покраска настила до открываемого участка',s:'2026-05-29',e:'2026-05-30',pct:25,ms:false},
+  {ph:'Ф.5',blk:'Монтаж новой дорожки',nm:'ВЕХА: 1 этап работ завершен. Новый участок запущен',s:'2026-05-30',e:'2026-05-30',pct:100,ms:false},
+  {ph:'Ф.5',blk:'Демонтаж старого участка',nm:'Демонтаж старого участка настила',s:'2026-06-01',e:'2026-06-07',pct:100,ms:false},
+  {ph:'Ф.5',blk:'Демонтаж старого участка',nm:'ВЕХА: Старый участок демонтирован',s:'2026-06-07',e:'2026-06-07',pct:100,ms:false},
+  {ph:'Ф.5',blk:'Перенос динозавров в ДиноПарке',nm:'№14 Амаргазавр (черный)',s:'2026-06-10',e:'2026-06-12',pct:0,ms:false},
+  {ph:'Ф.5',blk:'Перенос динозавров в ДиноПарке',nm:'№13 Амаргазавр (большой)',s:'2026-06-13',e:'2026-06-16',pct:0,ms:false},
+  {ph:'Ф.5',blk:'Перенос динозавров в ДиноПарке',nm:'ВЕХА: перенос динозавров внутри локации завершен',s:'2026-06-16',e:'2026-06-16',pct:0,ms:true},
+  {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'Демонтаж гнилого угла у скелета и прилегающей дорожки',s:'2026-06-08',e:'2026-06-09',pct:100,ms:false},
+  {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'Работы по замене настила — угол у скелета и прилегающая дорожка',s:'2026-06-09',e:'2026-06-18',pct:100,ms:false},
+  {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'2 этап. Покраска настила до открываемого участка',s:'2026-06-17',e:'2026-06-18',pct:0,ms:false},
+  {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'ВЕХА: 2 этап работ завершен. Угловой настил восстановлен',s:'2026-06-18',e:'2026-06-18',pct:0,ms:true},
+  {ph:'Ф.5',blk:'3 этап: замена настила к Дино-шатрам',nm:'Поэтапный демонтаж и монтаж участков настила к Дино-шатрам',s:'2026-06-19',e:'2026-07-03',pct:0,ms:false},
+  {ph:'Ф.5',blk:'3 этап: замена настила к Дино-шатрам',nm:'3 этап. Покраска настила до открываемого участка',s:'2026-07-02',e:'2026-07-03',pct:0,ms:false},
+  {ph:'Ф.5',blk:'3 этап: замена настила к Дино-шатрам',nm:'ВЕХА: 3 этап работ завершен. Настил к Дино-шатрам обновлен.',s:'2026-07-03',e:'2026-07-03',pct:0,ms:true},
+  {ph:'Ф.5',blk:'Замена забора',nm:'Закупка двухслойных тростниковых матов',s:'2026-05-29',e:'2026-06-15',pct:100,ms:false},
+  {ph:'Ф.5',blk:'Замена забора',nm:'Замена двухслойных тростниковых матов',s:'2026-06-16',e:'2026-06-19',pct:0,ms:false},
+  {ph:'Ф.5',blk:'Замена забора',nm:'ВЕХА: Заборы приняты',s:'2026-06-19',e:'2026-06-19',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Проектирование детских зон',nm:'Проект детской зоны - "Зона с навесом"',s:'2026-05-27',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Проектирование детских зон',nm:'Проект детской зоны - "Детская площадка с игровым комплексом"',s:'2026-05-28',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Проектирование детских зон',nm:'Проект детской зоны - "Игровая зона "Скелет"',s:'2026-05-28',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Проектирование детских зон',nm:'ВЕХА: Проекты детских зон переданы в работу',s:'2026-05-29',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка металлического борта',s:'2026-06-02',e:'2026-06-15',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка геотекстиля',s:'2026-05-28',e:'2026-06-01',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка материалов для засыпки площадки песок',s:'2026-05-28',e:'2026-05-29',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка материалов для засыпки площадки щепа',s:'2026-05-29',e:'2026-06-18',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка краски для настила, лавочек, ограждений, беседок и навеса над песочницей',s:'2026-06-08',e:'2026-06-11',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка пиломатериалов для ограждений площадки (столбы, доски)',s:'2026-06-17',e:'2026-06-19',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'ВЕХА: Материалы для детских зон закуплены',s:'2026-06-19',e:'2026-06-19',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка игрового оборудования',s:'2026-06-09',e:'2026-06-29',pct:50,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'Закупка рукомойника',s:'2026-06-09',e:'2026-06-18',pct:50,ms:false},
+  {ph:'Ф.6',blk:'Закупка  для детских зон',nm:'ВЕХА: Игровое оборудование закуплено',s:'2026-06-29',e:'2026-06-29',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Монтаж металлического борта по периметру площадки в зоне "Скелет"',s:'2026-06-20',e:'2026-06-21',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Обработка пиломатериалов (пропитка, покраска)',s:'2026-06-22',e:'2026-06-22',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Установка столбов ограждений',s:'2026-06-23',e:'2026-06-25',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Изготовление и установка лавочек (1 шт).',s:'2026-06-26',e:'2026-06-27',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Укладка геотекстиля',s:'2026-06-28',e:'2026-06-28',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Подшивка торца настила досками в зоне площадки "Скелет"',s:'2026-06-29',e:'2026-06-30',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Засыпка площадки щепой',s:'2026-07-01',e:'2026-07-02',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'Монтаж горизонтальных досок на ограждения, покраска торцов-спилов',s:'2026-07-03',e:'2026-07-04',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона "Скелет"',nm:'ВЕХА: Игровая зона "Скелет" принята',s:'2026-07-04',e:'2026-07-04',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Забор Мосприроды',nm:'Демонтаж забора Мосприроды (выход к озерам) и его вывоз',s:'2026-07-05',e:'2026-07-11',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Забор Мосприроды',nm:'ВЕХА: забор Мосприроды демонтирован',s:'2026-07-11',e:'2026-07-11',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Благоустройство в зоне "Археологическая песочница"',nm:'Покраска и замена досок на лавочках в зоне "Археологическая песочница"',s:'2026-06-20',e:'2026-06-22',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Благоустройство в зоне "Археологическая песочница"',nm:'Просеивание существующего песка в песочнице, довоз песка',s:'2026-06-16',e:'2026-06-17',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Благоустройство в зоне "Археологическая песочница"',nm:'Покраска навеса в зоне "Археологическая песочница"',s:'2026-06-19',e:'2026-06-24',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Благоустройство в зоне "Археологическая песочница"',nm:'ВЕХА: Благоустройство завершено',s:'2026-06-24',e:'2026-06-24',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Изготовление МАФов',nm:'Изготовление металлокаркаса и начального слепка МАФов для зоны "Археологическая песочница"(Березин)',s:'2026-05-28',e:'2026-06-16',pct:100,ms:false},
+  {ph:'Ф.6',blk:'Изготовление МАФов',nm:'Установка МАФов на площадке',s:'2026-06-17',e:'2026-06-19',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Изготовление МАФов',nm:'Изготовление МАФов - финишные работы',s:'2026-06-19',e:'2026-06-25',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Изготовление МАФов',nm:'ВЕХА: МАФы готовы',s:'2026-06-25',e:'2026-06-25',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Водоснабжение и оборудование',nm:'Прокладка водоснабжения и водоотведения для детского рукомойника',s:'2026-06-19',e:'2026-06-21',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Водоснабжение и оборудование',nm:'Установка  и подключение рукомойника',s:'2026-06-22',e:'2026-06-22',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Водоснабжение и оборудование',nm:'Монтаж игрового оборудования в зоне "Археологическая песочница"',s:'2026-06-30',e:'2026-07-01',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Водоснабжение и оборудование',nm:'ВЕХА: оборудование для игровой зоны установлено',s:'2026-07-01',e:'2026-07-01',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Укладка покрытия',nm:'Монтаж металлического борта по периметру площадки в зоне "Археологическая песочница"',s:'2026-06-16',e:'2026-06-17',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Укладка покрытия',nm:'Укладка геотекстиля в границах металлического борта',s:'2026-07-01',e:'2026-07-01',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Укладка покрытия',nm:'Засыпка древесной щепой в границах металлического борта',s:'2026-07-02',e:'2026-07-02',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Укладка покрытия',nm:'ВЕХА: Покрытие готово',s:'2026-07-02',e:'2026-07-02',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Укладка покрытия',nm:'ВЕХА: Игровая зона "Археологическая песочница" принята',s:'2026-07-02',e:'2026-07-02',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'Монтаж металлического борта',s:'2026-06-22',e:'2026-06-23',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'Укладка геотекстиля в границах металлического борта',s:'2026-06-24',e:'2026-06-24',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'Засыпка древесной щепой в границах металлического борта',s:'2026-06-25',e:'2026-06-26',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'Покраска игрового оборудования (горки, качели)',s:'2026-06-27',e:'2026-06-28',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'ВЕХА: Игровая зона с горкой принята',s:'2026-06-28',e:'2026-06-28',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'Покраска беседок',s:'2026-06-29',e:'2026-07-04',pct:0,ms:false},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'ВЕХА: Беседки покрашены',s:'2026-07-04',e:'2026-07-04',pct:0,ms:true},
+  {ph:'Ф.6',blk:'Игровая зона с горкой и качелями + беседки',nm:'ВЕХА: Благоустройство детских зон завершено',s:'2026-07-11',e:'2026-07-11',pct:0,ms:true},
+  {ph:'Ф.7',blk:'Электросети',nm:'Проектирование кабельных трасс',s:'2026-05-19',e:'2026-05-25',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Электросети',nm:'Выборка грунта для прокладки электросетей',s:'2026-05-26',e:'2026-06-01',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Электросети',nm:'Прокладка электрокабелей для фигур, до альпак и страус-парка',s:'2026-06-02',e:'2026-06-04',pct:0,ms:false},
+  {ph:'Ф.7',blk:'Электросети',nm:'ВЕХА: Электросети введены в эксплуатацию',s:'2026-06-04',e:'2026-06-04',pct:0,ms:true},
+  {ph:'Ф.7',blk:'Слаботочные сети',nm:'Проектирование канализации для слаботочной сети',s:'2026-05-20',e:'2026-05-25',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Слаботочные сети',nm:'Выборка грунта для прокладки',s:'2026-05-25',e:'2026-06-05',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Слаботочные сети',nm:'Установка слаботочных канализаций',s:'2026-05-29',e:'2026-06-05',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Слаботочные сети',nm:'Обратная засыпка слаботочных канализаций',s:'2026-05-30',e:'2026-06-06',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Слаботочные сети',nm:'ВЕХА: Закладные слаботочных сетей проложены',s:'2026-06-06',e:'2026-06-06',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 1 этап',nm:'Прокладка кабеля освещения вдоль новых дорожек 1 этап',s:'2026-05-31',e:'2026-06-04',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 1 этап',nm:'Установка светильников и подключение 1 этап',s:'2026-05-31',e:'2026-06-04',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 1 этап',nm:'Тест освещения и устранение замечаний 1 этап',s:'2026-05-31',e:'2026-06-04',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 1 этап',nm:'ВЕХА: Освещение введено в эксплуатацию 1 этап',s:'2026-05-31',e:'2026-06-04',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 2 этап',nm:'Прокладка кабеля освещения вдоль новых дорожек 2 этап',s:'2026-06-20',e:'2026-06-21',pct:100,ms:true},
+  {ph:'Ф.7',blk:'Монтаж освещения 2 этап',nm:'Установка светильников и подключение 2 этап',s:'2026-06-22',e:'2026-06-22',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 2 этап',nm:'Тест освещения и устранение замечаний 2 этап',s:'2026-06-22',e:'2026-06-22',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 2 этап',nm:'ВЕХА: Освещение введено в эксплуатацию 2 этап',s:'2026-06-22',e:'2026-06-22',pct:100,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 3 этап',nm:'Прокладка кабеля освещения вдоль новых дорожек 3 этап',s:'2026-07-06',e:'2026-07-10',pct:0,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 3 этап',nm:'Установка светильников и подключение 3 этап',s:'2026-07-13',e:'2026-07-17',pct:0,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 3 этап',nm:'Тест освещения и устранение замечаний 3 этап',s:'2026-07-20',e:'2026-07-20',pct:0,ms:false},
+  {ph:'Ф.7',blk:'Монтаж освещения 3 этап',nm:'ВЕХА: Освещение введено в эксплуатацию 3 этап',s:'2026-07-20',e:'2026-07-20',pct:0,ms:true},
+  {ph:'Ф.8',blk:'—',nm:'Разгрузка аниматроников',s:'2026-08-13',e:'2026-08-13',pct:0,ms:false},
+  {ph:'Ф.8',blk:'—',nm:'Расстановка аниматроников по позициям',s:'2026-08-14',e:'2026-08-20',pct:0,ms:false},
+  {ph:'Ф.8',blk:'—',nm:'Монтаж механики и крепления аниматроников (12 шт.)',s:'2026-08-16',e:'2026-08-22',pct:0,ms:false},
+  {ph:'Ф.8',blk:'—',nm:'Подключение аниматроников к электрике',s:'2026-08-16',e:'2026-08-22',pct:0,ms:false},
+  {ph:'Ф.8',blk:'—',nm:'Пусконаладка: звук, анимация, синхронизация',s:'2026-08-16',e:'2026-08-22',pct:0,ms:false},
+  {ph:'Ф.8',blk:'—',nm:'Резерв на монтаж и подключение',s:'2026-08-23',e:'2026-08-26',pct:0,ms:false},
+  {ph:'Ф.8',blk:'—',nm:'ВЕХА: Аниматроники смонтированы и работают штатно',s:'2026-08-26',e:'2026-08-26',pct:0,ms:true},
+  {ph:'Ф.9',blk:'—',nm:'Финальное благоустройство и демонтаж ограждений',s:'2026-08-27',e:'2026-08-27',pct:0,ms:false},
+  {ph:'Ф.9',blk:'—',nm:'Тестовые прогоны всех фигур динозавров',s:'2026-08-28',e:'2026-08-28',pct:0,ms:false},
+  {ph:'Ф.9',blk:'—',nm:'Финальная фотофиксация и приёмка по чек-листу PMO-04.01',s:'2026-08-28',e:'2026-08-28',pct:0,ms:false},
+  {ph:'Ф.9',blk:'—',nm:'Инструктаж операционной команды',s:'2026-08-28',e:'2026-08-28',pct:0,ms:false},
+  {ph:'Ф.9',blk:'—',nm:'Маркетинговый запуск (анонсы, soft-open)',s:'2026-08-17',e:'2026-08-17',pct:0,ms:false},
+  {ph:'Ф.9',blk:'—',nm:'Post-mortem и отчёт о завершении (PMO-04.02)',s:'2026-08-31',e:'2026-09-02',pct:0,ms:false},
+  {ph:'Ф.9',blk:'—',nm:'GRAND OPENING — Открытие обновлённого парка',s:'2026-08-28',e:'2026-08-28',pct:0,ms:true}
+];
+const FILE_BLOBS = {};
+const DOCS = [
+  {grp:'init',gl:'Инициация проекта',ico:'🪪',nm:'Карточка инициативы',code:'PMO-01.01',bc:'b-grn',st:'Готово',file:null},
+  {grp:'init',ico:'📄',nm:'Бриф проекта',code:'PMO-01.02',bc:'b-grn',st:'Готово',file:null},
+  {grp:'init',ico:'📉',nm:'Экономическое обоснование (ФЭМ)',code:'PMO-01.03',bc:'b-grn',st:'Готово',file:null},
+  {grp:'init',ico:'📋',nm:'Устав проекта',code:'PMO-01.04',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',gl:'Планирование',ico:'👥',nm:'Реестр стейкхолдеров',code:'PMO-02.01',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',ico:'📋',nm:'Реестр требований',code:'PMO-02.02',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',ico:'🔒',nm:'Реестр допущений и ограничений',code:'PMO-02.03',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',ico:'🌳',nm:'WBS — структура работ',code:'PMO-02.04',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',ico:'⚡',nm:'Матрица RACI',code:'PMO-02.05',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',ico:'📡',nm:'План коммуникаций',code:'PMO-02.06',bc:'b-grn',st:'Готово',file:null},
+  {grp:'plan',ico:'⚠️',nm:'Реестр рисков',code:'PMO-02.07',bc:'b-grn',st:'Готово',file:null},
+  {grp:'exec',gl:'Реализация',ico:'🐛',nm:'Журнал проблем',code:'PMO-03.02',bc:'b-grn',st:'Готово',file:null},
+  {grp:'exec',ico:'📝',nm:'Реестр изменений',code:'PMO-03.03',bc:'b-grn',st:'Готово',file:null},
+  {grp:'close',gl:'Завершение проекта',ico:'🏁',nm:'План приёмки (Grand Opening)',code:'PMO-04.01',bc:'b-gray',st:'Нет файла',file:null}
+];
+const METRICS = [
+  {lbl:'Grand Opening',val:'28.08.2026',cls:'',sub:'крайний срок по Уставу'},
+  {lbl:'Прогресс проекта',val:'48%',cls:'c-amb',sub:'КСГ · 10 фаз'},
+  {lbl:'Бюджет (актуал.)',val:'14 364 178 ₽',cls:'',sub:'актуализированный'},
+  {lbl:'Открытых ЗИ',val:'3',cls:'c-red',sub:'из 6 всего'}
+];
+const ALERTS = [
+  {cls:'red',icon:'🔧',html:'<b>Просрочено на 24.06.2026:</b> 17 задач не закрыты в КСГ — требуют актуализации.'},
+  {cls:'amb',icon:'📝',html:'<b>Открытых запросов на изменение:</b> 3 — на согласовании/решении.'},
+  {cls:'info',icon:'ℹ',html:'КСГ 24.06.2026 · автосборка 00:00/18:00 · данные обновляются автоматически'}
+];
+
+const REF = (() => { const[y,m,d]=REF_DATE.split('-'); return new Date(+y,+m-1,+d); })();
+const NOW_DISPLAY = new Date();
+
+function pd(s){const[y,m,d]=s.split('-');return new Date(+y,+m-1,+d);}
+function fd(s){if(!s)return'';const[y,m,d]=s.split('-');return d+'.'+m;}
+function fdd(dt){return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0')+'.'+dt.getFullYear();}
+function fds(dt){return String(dt.getDate()).padStart(2,'0')+'.'+String(dt.getMonth()+1).padStart(2,'0');}
+
+function getWeekBounds(off){
+  const r=new Date(REF);r.setHours(0,0,0,0);
+  const dow=r.getDay(),toMon=dow===0?-6:1-dow;
+  const mon=new Date(r);mon.setDate(r.getDate()+toMon+off*7);
+  const sun=new Date(mon);sun.setDate(mon.getDate()+6);sun.setHours(23,59,59,999);
+  return{s:mon,e:sun};
+}
+
+function filterWeek(ws,we){
+  return ALL_TASKS.filter(t=>{
+    if(t.pct===100)return false;
+    const ts=pd(t.s),te=pd(t.e);
+    ts.setHours(0,0,0,0);te.setHours(23,59,59,999);
+    return ts<=we&&te>=ws;
+  }).sort((a,b)=>pd(a.e)-pd(b.e));
+}
+
+function taskStatus(t){
+  const te=pd(t.e);te.setHours(23,59,59,999);
+  if(t.pct===100)return{txt:'Выполнено',bc:'b-grn'};
+  if(te<REF&&t.pct<100)return{txt:'Просрочено',bc:'b-red'};
+  if(t.ms)return{txt:'Веха',bc:'b-pur'};
+  if(t.pct>=80)return{txt:'Завершить',bc:'b-amb'};
+  if(t.pct>0)return{txt:'В работе',bc:'b-blu'};
+  const diff=Math.round((te.getTime()-REF.getTime())/86400000);
+  if(diff<=3)return{txt:'Через '+diff+' дн.',bc:'b-amb'};
+  return{txt:'Не начато',bc:'b-gray'};
+}
+
+function pctBar(pct){
+  const fc=pct>=80?' g':'';
+  return`<div class="pb"><div class="pb-bg"><div class="pb-f${fc}" style="width:${pct}%"></div></div><span class="pb-n">${pct}%</span></div>`;
+}
+
+function taskRow(t){
+  const st=taskStatus(t),over=pd(t.e)<REF&&t.pct<100;
+  return`<tr>
+    <td>${t.nm}</td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${fd(t.s)}</td>
+    <td style="font-family:var(--mono);font-size:11px;${over?'color:var(--red);font-weight:500':'color:var(--text3)'}">${fd(t.e)}</td>
+    <td>${pctBar(t.pct)}</td>
+    <td><span class="bdg bdg-lg ${st.bc}">${st.txt}</span></td>
+  </tr>`;
+}
+
+function renderGrouped(tasks,tbodyId){
+  const el=document.getElementById(tbodyId);
+  if(!tasks.length){el.innerHTML=`<tr><td colspan="5" class="empty-td">Нет задач на этот период</td></tr>`;return;}
+  const G={},O=[];
+  tasks.forEach(t=>{const k=t.ph+'|'+t.blk;if(!G[k]){G[k]={ph:t.ph,blk:t.blk,t:[]};O.push(k);}G[k].t.push(t);});
+  el.innerHTML=O.map(k=>`<tr class="blk-row"><td colspan="5"><span class="ph-tag" style="margin-right:6px">${G[k].ph}</span>${G[k].blk}</td></tr>${G[k].t.map(taskRow).join('')}`).join('');
+}
+
+let wOff=0,accOpen=true;
+
+function updateWeeks(){
+  const{s:ws,e:we}=getWeekBounds(wOff);
+  const{s:ns,e:ne}=getWeekBounds(wOff+1);
+  document.getElementById('wlbl').textContent=fds(ws)+' – '+fdd(we);
+  const nextTasks=filterWeek(ns,ne);
+  document.getElementById('next-lbl').textContent='Следующая неделя — '+fds(ns)+' – '+fdd(ne);
+  document.getElementById('acc-cnt').textContent=nextTasks.length?nextTasks.length+' задач':'нет задач';
+  renderGrouped(filterWeek(ws,we),'week-b');
+  renderGrouped(nextTasks,'next-b');
+}
+
+function pw(){wOff--;updateWeeks();}
+function nw(){wOff++;updateWeeks();}
+
+function toggleAcc(){
+  accOpen=!accOpen;
+  document.getElementById('acc-body').classList.toggle('closed',!accOpen);
+  document.getElementById('acc-chev').classList.toggle('open',accOpen);
+}
+
+function showView(id,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// DOCS
+let currentFilter='all';
+function setFilter(f,btn){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  filterDocs();
+}
+function filterDocs(){
+  const q=(document.getElementById('doc-search').value||'').toLowerCase();
+  document.querySelectorAll('.doc-card').forEach(c=>{
+    const fm=currentFilter==='all'||c.dataset.grp===currentFilter;
+    const sm=!q||c.dataset.nm.includes(q)||c.dataset.code.includes(q);
+    c.classList.toggle('hidden',!(fm&&sm));
+  });
+  document.querySelectorAll('.doc-group-label').forEach(lbl=>{
+    const gid=lbl.dataset.grp;
+    const any=[...document.querySelectorAll(`.doc-card[data-grp="${gid}"]`)].some(c=>!c.classList.contains('hidden'));
+    lbl.style.display=any?'':'none';
+    if(lbl.nextElementSibling)lbl.nextElementSibling.style.display=any?'':'none';
+  });
+  const any=[...document.querySelectorAll('.doc-card')].some(c=>!c.classList.contains('hidden'));
+  document.getElementById('docs-empty').style.display=any?'none':'block';
+}
+
+function render(){
+  // Topbar dates
+  document.getElementById('ksg-ver').textContent=KSG_VER;
+  document.getElementById('ksg-date').textContent=KSG_DATE;
+  document.getElementById('view-date').textContent=fdd(NOW_DISPLAY);
+
+  // Alerts (динамические — из данных)
+  document.getElementById('alerts').innerHTML=ALERTS.map(a=>`<div class="alert ${a.cls}"><span class="alert-icon">${a.icon}</span><span>${a.html}</span></div>`).join('');
+
+  // Metrics (динамические — из данных)
+  document.getElementById('metrics').innerHTML=METRICS.map(m=>`<div class="mc"><div class="mc-lbl">${m.lbl}</div><div class="mc-val ${m.cls||''}">${m.val}</div><div class="mc-sub">${m.sub}</div></div>`).join('');
+
+  // Phases
+  // Считаем задачи по фазе
+  const phStats={};
+  ALL_TASKS.forEach(t=>{
+    if(t.ms) return;
+    if(!phStats[t.ph]) phStats[t.ph]={total:0,done:0};
+    phStats[t.ph].total++;
+    if(t.pct===100) phStats[t.ph].done++;
+  });
+  const mkPh=p=>{
+    const st=phStats[p.nm.split(' ')[0]]||{total:0,done:0};
+    const allDone=st.total>0&&st.done===st.total;
+    return`<div class="ph ${p.cls}">
+      <div class="ph-nm">${p.nm}</div>
+      <div class="ph-pct">${p.pct}%</div>
+      <div class="ph-dt">${p.s} — ${p.e}</div>
+      <div class="bar"><div class="bar-f" style="width:${p.pct}%"></div></div>
+      <div class="ph-stats">
+        <span class="ph-stat${allDone?' grn':''}"><b>${st.done}</b>/${st.total} задач</span>
+      </div>
+    </div>`;
+  };
+  document.getElementById('ph1').innerHTML=PHASES.slice(0,5).map(mkPh).join('');
+  document.getElementById('ph2').innerHTML=PHASES.slice(5).map(mkPh).join('');
+
+  // Crit path
+  document.getElementById('cp').innerHTML=CRIT.map(c=>`<div class="cp-row"><div class="dot ${c.st}"></div><div class="cp-nm">${c.nm}</div><div class="cp-dt">${c.dt}</div><span class="bdg ${c.bc}">${c.b}</span></div>`).join('');
+
+  // ZI
+  document.getElementById('zi').innerHTML=ZI.map(z=>`<div class="zi-row"><span class="zi-id">${z.id}</span><span class="zi-nm">${z.nm}</span><span class="bdg ${z.bc}">${z.st}</span></div>`).join('');
+  document.getElementById('zi-title').textContent='Запросы на изменение ('+ZI.length+')';
+
+  // Active
+  renderGrouped(ALL_TASKS.filter(t=>t.pct>0&&t.pct<100).sort((a,b)=>pd(a.e)-pd(b.e)),'active-b');
+
+  // Needs action
+  // Needs action — grouped by phase+block like main tables
+  {
+    const el=document.getElementById('na-b');
+    const G={},O=[];
+    NEEDS_ACTION.forEach(o=>{
+      const k=o.ph+'|'+(o.blk||'');
+      if(!G[k]){G[k]={ph:o.ph,blk:o.blk||'',items:[]};O.push(k);}
+      G[k].items.push(o);
+    });
+    el.innerHTML=O.map(k=>{
+      const g=G[k];
+      const hdr=`<tr class="blk-row"><td colspan="4"><span class="ph-tag" style="margin-right:6px">${g.ph}</span>${g.blk}</td></tr>`;
+      const rows=g.items.map(o=>`<tr>
+        <td style="${o.cls==='red'?'color:var(--red)':''}">${o.nm}</td>
+        <td class="na-dt" style="${o.cls==='red'?'color:var(--red);font-weight:500':'color:var(--text3)'}">${o.dl}</td>
+        <td style="font-family:var(--mono);font-size:10px;${o.cls==='red'?'color:var(--red)':'color:var(--text3)'}">${o.pct}%</td>
+        <td><span class="bdg ${o.cls==='red'?'b-red':'b-amb'}">${o.act}</span></td>
+      </tr>`).join('');
+      return hdr+rows;
+    }).join('');
+  }
+
+  // Docs
+  const grps={},ord=[];
+  DOCS.forEach(d=>{if(!grps[d.grp]){grps[d.grp]={label:d.gl||d.grp,docs:[]};ord.push(d.grp);}grps[d.grp].docs.push(d);});
+  let html='';
+  ord.forEach(gid=>{
+    const g=grps[gid];
+    html+=`<div class="doc-group-label" data-grp="${gid}">${g.label}</div><div class="doc-grid">`;
+    g.docs.forEach(d=>{
+      const btn=d.file?(FILE_BLOBS[d.file]?`<a class="doc-open" href="${FILE_BLOBS[d.file]}" download="${d.file}">Скачать ↓</a>`:`<a class="doc-open" href="${d.file}" target="_blank">Открыть ↗</a>`):`<span style="font-family:var(--mono);font-size:9px;color:var(--text3)">—</span>`;
+      html+=`<div class="doc-card" data-grp="${gid}" data-nm="${d.nm.toLowerCase()}" data-code="${d.code.toLowerCase()}">
+        <div class="doc-card-top"><div class="doc-icon">${d.ico}</div><div class="doc-info"><div class="doc-code">${d.code}</div><div class="doc-name">${d.nm}</div></div></div>
+        <div class="doc-card-bottom"><span class="bdg ${d.bc}">${d.st}</span>${btn}</div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  document.getElementById('doc-container').innerHTML=html;
+
+  updateWeeks();
+
+  // ── ВЫПОЛНЕННЫЕ ЗАДАЧИ ──────────────────────────────
+  const doneTasks = ALL_TASKS.filter(t=>t.pct===100).sort((a,b)=>pd(a.e)-pd(b.e));
+  document.getElementById('done-cnt').textContent = doneTasks.length + ' задач';
+  renderGrouped(doneTasks, 'done-b');
+
+  // ── ДИАГРАММА ГАНТА ВЫПОЛНЕННЫХ ─────────────────────
+  (function(){
+    // Диапазон дат — от минимального старта до сегодня
+    if(!doneTasks.length) return;
+    const minD = doneTasks.reduce((m,t)=>pd(t.s)<m?pd(t.s):m, pd(doneTasks[0].s));
+    const maxD = new Date(REF); // до REF_DATE
+    const totalDays = Math.max(1, Math.round((maxD-minD)/86400000));
+
+    // Генерируем заголовок месяцев
+    const monthNames = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+    let headHTML = '';
+    let cur = new Date(minD); cur.setDate(1);
+    while(cur <= maxD){
+      const mStart = new Date(cur);
+      const mEnd = new Date(cur.getFullYear(), cur.getMonth()+1, 0);
+      const visStart = mStart < minD ? minD : mStart;
+      const visEnd = mEnd > maxD ? maxD : mEnd;
+      const w = Math.round((visEnd-visStart)/86400000/totalDays*100);
+      if(w>0) headHTML+=`<div class="gantt-month" style="width:${w}%">${monthNames[cur.getMonth()]} ${cur.getMonth()===0?cur.getFullYear():''}</div>`;
+      cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
+    }
+
+    function barStyle(s,e){
+      const left = Math.max(0,Math.round((pd(s)-minD)/86400000/totalDays*100));
+      const right = Math.min(100,Math.round((pd(e)-minD)/86400000/totalDays*100));
+      const w = Math.max(0.3, right-left);
+      return `left:${left}%;width:${w}%`;
+    }
+
+    // Группируем по фазе для компактности
+    const byPh = {};
+    doneTasks.forEach(t=>{if(!byPh[t.ph])byPh[t.ph]=[];byPh[t.ph].push(t);});
+
+    let ganttHTML = `<div class="gantt-wrap">
+      <div class="gantt-head">${headHTML}</div>`;
+
+    Object.entries(byPh).forEach(([ph,tasks])=>{
+      // Строка фазы-суммарник
+      const phMinS = tasks.reduce((m,t)=>t.s<m?t.s:m, tasks[0].s);
+      const phMaxE = tasks.reduce((m,t)=>t.e>m?t.e:m, tasks[0].e);
+      ganttHTML+=`<div class="gantt-row">
+        <div class="gantt-lbl"><span class="ph-tag">${ph}</span>${tasks.length} задач</div>
+        <div class="gantt-track"><div class="gantt-bar ph" style="${barStyle(phMinS,phMaxE)}"></div></div>
+      </div>`;
+      // Отдельные задачи
+      tasks.forEach(t=>{
+        const isMil = t.ms;
+        ganttHTML+=`<div class="gantt-row${isMil?' ms-row':''}">
+          <div class="gantt-lbl" style="padding-left:12px;font-size:9px;color:var(--text3)">${t.nm.length>28?t.nm.slice(0,28)+'…':t.nm}</div>
+          <div class="gantt-track">${isMil
+            ?`<div class="gantt-ms" style="left:${Math.max(0,Math.round((pd(t.e)-minD)/86400000/totalDays*100))}%"></div>`
+            :`<div class="gantt-bar" style="${barStyle(t.s,t.e)}"></div>`
+          }</div>
+        </div>`;
+      });
+      ganttHTML+=`<div class="gantt-sep"></div>`;
+    });
+    ganttHTML+='</div>';
+    document.getElementById('done-gantt').innerHTML=ganttHTML;
+  })();
+}
+
+function toggleDone(){
+  const body=document.getElementById('done-body');
+  const chev=document.getElementById('done-chev');
+  body.classList.toggle('closed');
+  chev.textContent=body.classList.contains('closed')?'▼':'▲';
+}
+
+render();
+</script>
+</body>
+</html>
