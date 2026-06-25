@@ -117,12 +117,12 @@ thead th{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--text3
 tbody td{padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:middle}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:rgba(255,255,255,0.02)}
-.blk-row td{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--text3);background:var(--bg3);padding:4px 10px;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.blk-row td{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--text2);background:var(--bg3);padding:4px 10px;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--border)}
 .pb{display:flex;align-items:center;gap:5px}
 .pb-bg{flex:1;height:2px;background:var(--border2);border-radius:2px;overflow:hidden;min-width:30px}
 .pb-f{height:2px;border-radius:2px;background:var(--blu)}
 .pb-f.g{background:var(--grn)}.pb-f.a{background:var(--amb)}
-.pb-n{font-family:var(--mono);font-size:11px;color:var(--text3);min-width:26px}
+.pb-n{font-family:var(--mono);font-size:11px;color:var(--text2);min-width:26px}
 .ph-tag{font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px;background:var(--blu-bg);color:var(--blu);border:1px solid var(--blu-bd);white-space:nowrap;display:inline-block}
 .empty-td{color:var(--text3);font-style:italic;text-align:center;padding:14px 10px}
 
@@ -184,7 +184,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 <div class="topbar">
   <span class="topbar-id">PRK-2026-DS</span>
   <span class="topbar-title">Модернизация ДиноПарка и Дино-Сафари</span>
-  <span class="topbar-meta">КСГ <span id="ksg-ver">v02.06</span> · <span id="ksg-date">02.06.2026</span> · просмотр <span id="view-date"></span></span>
+  <span class="topbar-meta">КСГ <span id="ksg-ver">v02.06</span> · <span id="ksg-date">02.06.2026</span> · обновлено <span id="view-date"></span></span>
   <button class="tab-btn active" onclick="showView('dashboard',this)">Дашборд</button>
   <button class="tab-btn" onclick="showView('docs',this)">Документы</button>
 </div>
@@ -295,6 +295,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 const KSG_VER  = 'v25.06';
 const KSG_DATE = '25.06.2026';
 const REF_DATE = '2026-06-25';
+const BUILD_STAMP = '25.06.2026 12:44';
 const PHASES = [
   {nm:'Ф.0 Инициация',pct:100,s:'20.04',e:'13.05',cls:'done'},
   {nm:'Ф.1 Бюджетирование',pct:100,s:'14.05',e:'05.06',cls:'done'},
@@ -315,8 +316,8 @@ const CRIT = [
   {nm:'GRAND OPENING — Открытие обновлённого парка',dt:'28.08.2026',st:'idle',b:'Ожидание',bc:'b-gray'}
 ];
 const ZI = [
-  {id:'CR-01',nm:'Актуализация цен по сметам — увеличение бюджета ра…',bc:'b-amb',st:'На одобрении'},
-  {id:'CR-02',nm:'Управленческий резерв 10% к бюджету',bc:'b-amb',st:'На одобрении'},
+  {id:'CR-01',nm:'Актуализация цен по сметам — увеличение бюджета ра…',bc:'b-grn',st:'Согласовано с инвестором (партнёром)'},
+  {id:'CR-02',nm:'Управленческий резерв 10% к бюджету',bc:'b-grn',st:'Согласовано с инвестором (партнёром)'},
   {id:'CR-03',nm:'Исключение рисков R-11 и R-25 из реестра',bc:'b-grn',st:'Внесено'},
   {id:'CR-04',nm:'Переоценка уровней R-23 и R-24',bc:'b-grn',st:'Внесено'},
   {id:'CR-05',nm:'Риск-ориентированный резерв (Вариант 2)',bc:'b-amb',st:'На решении'},
@@ -474,14 +475,14 @@ const DOCS = [
   {grp:'close',gl:'Завершение проекта',ico:'🏁',nm:'План приёмки (Grand Opening)',code:'PMO-04.01',bc:'b-gray',st:'Нет файла',file:null}
 ];
 const METRICS = [
-  {lbl:'Grand Opening',val:'28.08.2026',cls:'',sub:'крайний срок по Уставу'},
+  {lbl:'Grand Opening',val:'28.08.2026',cls:'',sub:'осталось 64 дн.'},
   {lbl:'Прогресс проекта',val:'48%',cls:'c-amb',sub:'КСГ · 10 фаз'},
-  {lbl:'Бюджет (актуал.)',val:'14 364 178 ₽',cls:'',sub:'актуализированный'},
-  {lbl:'Открытых ЗИ',val:'3',cls:'c-red',sub:'из 6 всего'}
+  {lbl:'Бюджет (актуал.)',val:'14 435 443 ₽',cls:'',sub:'актуализированный'},
+  {lbl:'Открытых ЗИ',val:'1',cls:'c-red',sub:'из 6 всего'}
 ];
 const ALERTS = [
   {cls:'red',icon:'🔧',html:'<b>Просрочено на 25.06.2026:</b> 19 задач не закрыты в КСГ — требуют актуализации.'},
-  {cls:'amb',icon:'📝',html:'<b>Открытых запросов на изменение:</b> 3 — на согласовании/решении.'},
+  {cls:'amb',icon:'📝',html:'<b>Открытых запросов на изменение:</b> 1 — на согласовании/решении.'},
   {cls:'info',icon:'ℹ',html:'КСГ 25.06.2026 · автосборка 00:00/18:00 · данные обновляются автоматически'}
 ];
 
@@ -531,8 +532,8 @@ function taskRow(t){
   const st=taskStatus(t),over=pd(t.e)<REF&&t.pct<100;
   return`<tr>
     <td>${t.nm}</td>
-    <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${fd(t.s)}</td>
-    <td style="font-family:var(--mono);font-size:11px;${over?'color:var(--red);font-weight:500':'color:var(--text3)'}">${fd(t.e)}</td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${fd(t.s)}</td>
+    <td style="font-family:var(--mono);font-size:11px;${over?'color:var(--red);font-weight:500':'color:var(--text2)'}">${fd(t.e)}</td>
     <td>${pctBar(t.pct)}</td>
     <td><span class="bdg bdg-lg ${st.bc}">${st.txt}</span></td>
   </tr>`;
@@ -604,7 +605,7 @@ function render(){
   // Topbar dates
   document.getElementById('ksg-ver').textContent=KSG_VER;
   document.getElementById('ksg-date').textContent=KSG_DATE;
-  document.getElementById('view-date').textContent=fdd(NOW_DISPLAY);
+  document.getElementById('view-date').textContent=(typeof BUILD_STAMP!=='undefined')?BUILD_STAMP:fdd(NOW_DISPLAY);
 
   // Alerts (динамические — из данных)
   document.getElementById('alerts').innerHTML=ALERTS.map(a=>`<div class="alert ${a.cls}"><span class="alert-icon">${a.icon}</span><span>${a.html}</span></div>`).join('');
@@ -662,7 +663,7 @@ function render(){
       const hdr=`<tr class="blk-row"><td colspan="4"><span class="ph-tag" style="margin-right:6px">${g.ph}</span>${g.blk}</td></tr>`;
       const rows=g.items.map(o=>`<tr>
         <td style="${o.cls==='red'?'color:var(--red)':''}">${o.nm}</td>
-        <td class="na-dt" style="${o.cls==='red'?'color:var(--red);font-weight:500':'color:var(--text3)'}">${o.dl}</td>
+        <td class="na-dt" style="${o.cls==='red'?'color:var(--red);font-weight:500':'color:var(--text2)'}">${o.dl}</td>
         <td style="font-family:var(--mono);font-size:10px;${o.cls==='red'?'color:var(--red)':'color:var(--text3)'}">${o.pct}%</td>
         <td><span class="bdg ${o.cls==='red'?'b-red':'b-amb'}">${o.act}</span></td>
       </tr>`).join('');
