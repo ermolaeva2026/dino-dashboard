@@ -199,6 +199,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   .pb-n{font-size:10px;min-width:22px}
   .cp-nm,.zi-nm{font-size:10px}
   .panel .bdg{flex-shrink:1;white-space:normal;text-align:right}
+  tbody td .bdg{white-space:normal}
   .docs-toolbar input{min-width:120px}
 }
 </style>
@@ -318,7 +319,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 const KSG_VER  = 'v25.06';
 const KSG_DATE = '25.06.2026';
 const REF_DATE = '2026-06-25';
-const BUILD_STAMP = '25.06.2026 16:03';
+const BUILD_STAMP = '25.06.2026 16:49';
 const PHASES = [
   {nm:'Ф.0 Инициация',pct:100,s:'20.04',e:'13.05',cls:'done'},
   {nm:'Ф.1 Бюджетирование',pct:100,s:'14.05',e:'05.06',cls:'done'},
@@ -534,12 +535,15 @@ function filterWeek(ws,we){
 
 function taskStatus(t){
   const te=pd(t.e);te.setHours(23,59,59,999);
+  const ts=pd(t.s);ts.setHours(0,0,0,0);
   if(t.pct===100)return{txt:'Выполнено',bc:'b-grn'};
   if(te<REF&&t.pct<100)return{txt:'Просрочено',bc:'b-red'};
   if(t.ms)return{txt:'Веха',bc:'b-pur'};
   if(t.pct>=80)return{txt:'Завершить',bc:'b-amb'};
   if(t.pct>0)return{txt:'В работе',bc:'b-blu'};
-  const diff=Math.round((te.getTime()-REF.getTime())/86400000);
+  // 0%: если плановый старт уже прошёл — задача должна идти, но не начата
+  if(ts<REF)return{txt:'Старт просрочен',bc:'b-amb'};
+  const diff=Math.round((ts.getTime()-REF.getTime())/86400000);  // дней до старта
   if(diff<=3)return{txt:'Через '+diff+' дн.',bc:'b-amb'};
   return{txt:'Не начато',bc:'b-gray'};
 }
