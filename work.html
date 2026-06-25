@@ -177,6 +177,30 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   .two{grid-template-columns:1fr}
   .doc-grid{grid-template-columns:1fr}
 }
+/* ─────── Телефон ─────── */
+@media(max-width:560px){
+  .wrap{padding:12px 12px 30px}
+  .topbar{flex-wrap:wrap;padding:9px 12px;gap:6px 10px;position:static}
+  .topbar-id{order:1}
+  .topbar-title{order:2;flex:1 1 auto;font-size:13px}
+  .topbar-meta{order:3;flex:1 1 100%;font-size:9px;line-height:1.45}
+  .tab-btn{order:4;flex:1}
+  .metrics{gap:8px}
+  .mc{padding:11px 12px}
+  .mc-val{font-size:18px}
+  .phases{gap:7px}
+  .ph-pct{font-size:18px}
+  .sec{font-size:9px}
+  /* таблицы задач: компактнее, без переполнения страницы */
+  thead th{padding:6px 6px;font-size:8px}
+  tbody td{padding:5px 6px;font-size:10px}
+  .bdg-lg{font-size:9px;padding:2px 5px}
+  .blk-row td{font-size:8px;padding:4px 6px}
+  .pb-n{font-size:10px;min-width:22px}
+  .cp-nm,.zi-nm{font-size:10px}
+  .panel .bdg{flex-shrink:1;white-space:normal;text-align:right}
+  .docs-toolbar input{min-width:120px}
+}
 </style>
 </head>
 <body>
@@ -294,7 +318,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 const KSG_VER  = 'v25.06';
 const KSG_DATE = '25.06.2026';
 const REF_DATE = '2026-06-25';
-const BUILD_STAMP = '25.06.2026 15:25';
+const BUILD_STAMP = '25.06.2026 16:03';
 const PHASES = [
   {nm:'Ф.0 Инициация',pct:100,s:'20.04',e:'13.05',cls:'done'},
   {nm:'Ф.1 Бюджетирование',pct:100,s:'14.05',e:'05.06',cls:'done'},
@@ -689,7 +713,8 @@ function render(){
   updateWeeks();
 
   // ── ВЫПОЛНЕННЫЕ ЗАДАЧИ ──────────────────────────────
-  const doneTasks = ALL_TASKS.filter(t=>t.pct===100).sort((a,b)=>pd(a.e)-pd(b.e));
+  const phNum=t=>{const m=(t.ph||'').match(/\d+/);return m?+m[0]:99;};
+  const doneTasks = ALL_TASKS.filter(t=>t.pct===100).sort((a,b)=> phNum(a)-phNum(b) || pd(a.e)-pd(b.e));
   document.getElementById('done-cnt').textContent = doneTasks.length + ' задач';
   renderGrouped(doneTasks, 'done-b');
 
