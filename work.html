@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .alert-icon{font-size:14px;flex-shrink:0;margin-top:1px}
 
 /* METRICS */
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px;max-width:560px}
 .mc{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:13px 15px}
 .mc-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
 .mc-val{font-family:var(--mono);font-size:22px;font-weight:500;line-height:1.1}
@@ -210,8 +210,6 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   <span class="topbar-id">PRK-2026-DS</span>
   <span class="topbar-title">Модернизация ДиноПарка и Дино-Сафари</span>
   <span class="topbar-meta">КСГ <span id="ksg-ver">v02.06</span> · <span id="ksg-date">02.06.2026</span> · обновлено <span id="view-date"></span></span>
-  <button class="tab-btn active" onclick="showView('dashboard',this)">Дашборд</button>
-  <button class="tab-btn" onclick="showView('docs',this)">Документы</button>
 </div>
 
 <div class="wrap">
@@ -221,13 +219,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   <div class="alerts" id="alerts"></div>
   <div class="metrics" id="metrics"></div>
   <div class="sec">Прогресс по фазам</div>
-  <div class="phases" id="ph1" style="margin-bottom:8px"></div>
-  <div class="phases" id="ph2"></div>
-  <div class="sec" style="margin-top:18px">Управление проектом</div>
-  <div class="two">
-    <div class="panel"><div class="panel-title">Критический путь</div><div id="cp"></div></div>
-    <div class="panel"><div class="panel-title" id="zi-title">Запросы на изменение</div><div id="zi"></div></div>
-  </div>
+  <div class="phases" id="ph1"></div>
   <div class="sec">В работе прямо сейчас</div>
   <div class="tbl-wrap">
     <table><thead><tr>
@@ -278,8 +270,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 
   <!-- ВЫПОЛНЕННЫЕ ЗАДАЧИ -->
-  <div class="sec" style="margin-top:20px">Выполненные задачи</div>
-  <div class="acc-hdr" onclick="toggleDone()" style="margin-top:0">
+  <div class="acc-hdr" onclick="toggleDone()" style="margin-top:20px">
     <span class="acc-lbl">Таблица выполненных</span>
     <span class="acc-cnt" id="done-cnt"></span>
     <div class="acc-line"></div>
@@ -296,20 +287,6 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
   </div>
 </div>
 
-<!-- DOCS -->
-<div class="view" id="view-docs">
-  <div class="docs-toolbar">
-    <input type="text" id="doc-search" placeholder="Поиск по названию или коду..." oninput="filterDocs()">
-    <button class="filter-btn active" onclick="setFilter('all',this)">Все</button>
-    <button class="filter-btn" onclick="setFilter('init',this)">Инициация</button>
-    <button class="filter-btn" onclick="setFilter('plan',this)">Планирование</button>
-    <button class="filter-btn" onclick="setFilter('exec',this)">Реализация</button>
-    <button class="filter-btn" onclick="setFilter('close',this)">Завершение</button>
-  </div>
-  <div id="doc-container"></div>
-  <div class="docs-empty" id="docs-empty" style="display:none">Документы не найдены</div>
-</div>
-
 </div><!-- /wrap -->
 
 <script>
@@ -319,14 +296,14 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 const KSG_VER  = 'v25.06';
 const KSG_DATE = '25.06.2026';
 const REF_DATE = '2026-06-25';
-const BUILD_STAMP = '25.06.2026 16:49';
+const BUILD_STAMP = '25.06.2026 18:15';
 const PHASES = [
   {nm:'Ф.0 Инициация',pct:100,s:'20.04',e:'13.05',cls:'done'},
   {nm:'Ф.1 Бюджетирование',pct:100,s:'14.05',e:'05.06',cls:'done'},
   {nm:'Ф.2 Проектирование',pct:100,s:'28.05',e:'29.05',cls:'done'},
   {nm:'Ф.3 ВЭД аниматроники',pct:22,s:'19.05',e:'26.08',cls:'act'},
   {nm:'Ф.4 Реставрация',pct:39,s:'05.05',e:'30.06',cls:'act'},
-  {nm:'Ф.5 СМР',pct:52,s:'21.05',e:'03.08',cls:'act'},
+  {nm:'Ф.5 СМР',pct:57,s:'21.05',e:'03.08',cls:'act'},
   {nm:'Ф.6 Детские зоны',pct:51,s:'27.05',e:'11.07',cls:'act'},
   {nm:'Ф.7 Электромонтаж',pct:83,s:'19.05',e:'20.07',cls:'act'},
   {nm:'Ф.8 Монтаж аниматр.',pct:0,s:'13.08',e:'26.08',cls:'idle'},
@@ -410,7 +387,7 @@ const ALL_TASKS = [
   {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'Демонтаж гнилого угла у скелета и прилегающей дорожки',s:'2026-06-08',e:'2026-06-09',pct:100,ms:false},
   {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'Работы по замене настила — угол у скелета и прилегающая дорожка',s:'2026-06-09',e:'2026-06-18',pct:100,ms:false},
   {ph:'Ф.5',blk:'2 этап: замена угла у скелета',nm:'2 этап. Покраска настила до открываемого участка',s:'2026-06-17',e:'2026-06-18',pct:0,ms:false},
-  {ph:'Ф.5',blk:'3 этап: замена настила к Дино-шатрам',nm:'Поэтапный демонтаж и монтаж участков настила к Дино-шатрам',s:'2026-06-19',e:'2026-07-03',pct:0,ms:false},
+  {ph:'Ф.5',blk:'3 этап: замена настила к Дино-шатрам',nm:'Поэтапный демонтаж и монтаж участков настила к Дино-шатрам',s:'2026-06-19',e:'2026-07-03',pct:30,ms:false},
   {ph:'Ф.5',blk:'3 этап: замена настила к Дино-шатрам',nm:'3 этап. Покраска настила до открываемого участка',s:'2026-07-02',e:'2026-07-03',pct:0,ms:false},
   {ph:'Ф.5',blk:'Замена забора',nm:'Закупка двухслойных тростниковых матов',s:'2026-05-29',e:'2026-06-15',pct:100,ms:false},
   {ph:'Ф.5',blk:'Замена забора',nm:'Замена двухслойных тростниковых матов',s:'2026-06-16',e:'2026-06-19',pct:0,ms:false},
@@ -498,13 +475,10 @@ const DOCS = [
 ];
 const METRICS = [
   {lbl:'Grand Opening',val:'28.08.2026',cls:'',sub:'осталось 64 дн.'},
-  {lbl:'Прогресс проекта',val:'48%',cls:'c-amb',sub:'КСГ · 10 фаз'},
-  {lbl:'Бюджет (актуал.)',val:'14 435 443 ₽',cls:'',sub:'актуализированный'},
-  {lbl:'Открытых ЗИ',val:'1',cls:'c-red',sub:'из 6 всего'}
+  {lbl:'Прогресс проекта',val:'49%',cls:'c-amb',sub:'КСГ · 10 фаз'}
 ];
 const ALERTS = [
   {cls:'red',icon:'🔧',html:'<b>Просрочено на 25.06.2026:</b> 19 задач не закрыты в КСГ — требуют актуализации.'},
-  {cls:'amb',icon:'📝',html:'<b>Открытых запросов на изменение:</b> 1 — на согласовании/решении.'},
   {cls:'info',icon:'ℹ',html:'КСГ 25.06.2026 · автосборка 00:00/18:00 · данные обновляются автоматически'}
 ];
 
@@ -660,15 +634,7 @@ function render(){
       </div>
     </div>`;
   };
-  document.getElementById('ph1').innerHTML=PHASES.slice(0,5).map(mkPh).join('');
-  document.getElementById('ph2').innerHTML=PHASES.slice(5).map(mkPh).join('');
-
-  // Crit path
-  document.getElementById('cp').innerHTML=CRIT.map(c=>`<div class="cp-row"><div class="dot ${c.st}"></div><div class="cp-nm">${c.nm}</div><div class="cp-dt">${c.dt}</div><span class="bdg ${c.bc}">${c.b}</span></div>`).join('');
-
-  // ZI
-  document.getElementById('zi').innerHTML=ZI.map(z=>`<div class="zi-row"><span class="zi-id">${z.id}</span><span class="zi-nm">${z.nm}</span><span class="bdg ${z.bc}">${z.st}</span></div>`).join('');
-  document.getElementById('zi-title').textContent='Запросы на изменение ('+ZI.length+')';
+  document.getElementById('ph1').innerHTML=PHASES.map(mkPh).join('');
 
   // Active
   renderGrouped(ALL_TASKS.filter(t=>t.pct>0&&t.pct<100).sort((a,b)=>pd(a.e)-pd(b.e)),'active-b');
@@ -695,24 +661,6 @@ function render(){
       return hdr+rows;
     }).join('');
   }
-
-  // Docs
-  const grps={},ord=[];
-  DOCS.forEach(d=>{if(!grps[d.grp]){grps[d.grp]={label:d.gl||d.grp,docs:[]};ord.push(d.grp);}grps[d.grp].docs.push(d);});
-  let html='';
-  ord.forEach(gid=>{
-    const g=grps[gid];
-    html+=`<div class="doc-group-label" data-grp="${gid}">${g.label}</div><div class="doc-grid">`;
-    g.docs.forEach(d=>{
-      const btn=d.file?(FILE_BLOBS[d.file]?`<a class="doc-open" href="${FILE_BLOBS[d.file]}" download="${d.file}">Скачать ↓</a>`:`<a class="doc-open" href="${d.file}" target="_blank">Открыть ↗</a>`):`<span style="font-family:var(--mono);font-size:9px;color:var(--text3)">—</span>`;
-      html+=`<div class="doc-card" data-grp="${gid}" data-nm="${d.nm.toLowerCase()}" data-code="${d.code.toLowerCase()}">
-        <div class="doc-card-top"><div class="doc-icon">${d.ico}</div><div class="doc-info"><div class="doc-code">${d.code}</div><div class="doc-name">${d.nm}</div></div></div>
-        <div class="doc-card-bottom"><span class="bdg ${d.bc}">${d.st}</span>${btn}</div>
-      </div>`;
-    });
-    html+='</div>';
-  });
-  document.getElementById('doc-container').innerHTML=html;
 
   updateWeeks();
 
