@@ -254,7 +254,6 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 
   <!-- ВЫПОЛНЕННЫЕ ЗАДАЧИ -->
   <div class="sec" style="margin-top:20px">Выполненные задачи</div>
-  <div id="done-gantt" style="margin-bottom:8px"></div>
   <div class="acc-hdr" onclick="toggleDone()" style="margin-top:0">
     <span class="acc-lbl">Таблица выполненных</span>
     <span class="acc-cnt" id="done-cnt"></span>
@@ -295,7 +294,7 @@ tbody tr:hover td{background:rgba(255,255,255,0.02)}
 const KSG_VER  = 'v25.06';
 const KSG_DATE = '25.06.2026';
 const REF_DATE = '2026-06-25';
-const BUILD_STAMP = '25.06.2026 12:44';
+const BUILD_STAMP = '25.06.2026 12:55';
 const PHASES = [
   {nm:'Ф.0 Инициация',pct:100,s:'20.04',e:'13.05',cls:'done'},
   {nm:'Ф.1 Бюджетирование',pct:100,s:'14.05',e:'05.06',cls:'done'},
@@ -696,66 +695,7 @@ function render(){
   document.getElementById('done-cnt').textContent = doneTasks.length + ' задач';
   renderGrouped(doneTasks, 'done-b');
 
-  // ── ДИАГРАММА ГАНТА ВЫПОЛНЕННЫХ ─────────────────────
-  (function(){
-    // Диапазон дат — от минимального старта до сегодня
-    if(!doneTasks.length) return;
-    const minD = doneTasks.reduce((m,t)=>pd(t.s)<m?pd(t.s):m, pd(doneTasks[0].s));
-    const maxD = new Date(REF); // до REF_DATE
-    const totalDays = Math.max(1, Math.round((maxD-minD)/86400000));
-
-    // Генерируем заголовок месяцев
-    const monthNames = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
-    let headHTML = '';
-    let cur = new Date(minD); cur.setDate(1);
-    while(cur <= maxD){
-      const mStart = new Date(cur);
-      const mEnd = new Date(cur.getFullYear(), cur.getMonth()+1, 0);
-      const visStart = mStart < minD ? minD : mStart;
-      const visEnd = mEnd > maxD ? maxD : mEnd;
-      const w = Math.round((visEnd-visStart)/86400000/totalDays*100);
-      if(w>0) headHTML+=`<div class="gantt-month" style="width:${w}%">${monthNames[cur.getMonth()]} ${cur.getMonth()===0?cur.getFullYear():''}</div>`;
-      cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
-    }
-
-    function barStyle(s,e){
-      const left = Math.max(0,Math.round((pd(s)-minD)/86400000/totalDays*100));
-      const right = Math.min(100,Math.round((pd(e)-minD)/86400000/totalDays*100));
-      const w = Math.max(0.3, right-left);
-      return `left:${left}%;width:${w}%`;
-    }
-
-    // Группируем по фазе для компактности
-    const byPh = {};
-    doneTasks.forEach(t=>{if(!byPh[t.ph])byPh[t.ph]=[];byPh[t.ph].push(t);});
-
-    let ganttHTML = `<div class="gantt-wrap">
-      <div class="gantt-head">${headHTML}</div>`;
-
-    Object.entries(byPh).forEach(([ph,tasks])=>{
-      // Строка фазы-суммарник
-      const phMinS = tasks.reduce((m,t)=>t.s<m?t.s:m, tasks[0].s);
-      const phMaxE = tasks.reduce((m,t)=>t.e>m?t.e:m, tasks[0].e);
-      ganttHTML+=`<div class="gantt-row">
-        <div class="gantt-lbl"><span class="ph-tag">${ph}</span>${tasks.length} задач</div>
-        <div class="gantt-track"><div class="gantt-bar ph" style="${barStyle(phMinS,phMaxE)}"></div></div>
-      </div>`;
-      // Отдельные задачи
-      tasks.forEach(t=>{
-        const isMil = t.ms;
-        ganttHTML+=`<div class="gantt-row${isMil?' ms-row':''}">
-          <div class="gantt-lbl" style="padding-left:12px;font-size:9px;color:var(--text3)">${t.nm.length>28?t.nm.slice(0,28)+'…':t.nm}</div>
-          <div class="gantt-track">${isMil
-            ?`<div class="gantt-ms" style="left:${Math.max(0,Math.round((pd(t.e)-minD)/86400000/totalDays*100))}%"></div>`
-            :`<div class="gantt-bar" style="${barStyle(t.s,t.e)}"></div>`
-          }</div>
-        </div>`;
-      });
-      ganttHTML+=`<div class="gantt-sep"></div>`;
-    });
-    ganttHTML+='</div>';
-    document.getElementById('done-gantt').innerHTML=ganttHTML;
-  })();
+  // (Гантт-диаграмма выполненных убрана по запросу)
 }
 
 function toggleDone(){
