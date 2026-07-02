@@ -49,7 +49,7 @@ function Remove-LargeGalleryRefs([string]$HtmlPath, [string]$JsonPath) {
   }
 }
 
-function ConvertTo-WebPhoto([string]$SourcePath, [string]$DestPath, [int]$MaxSide = 1400, [int64]$Quality = 76) {
+function ConvertTo-WebPhoto([string]$SourcePath, [string]$DestPath, [int]$MaxSide = 900, [int64]$Quality = 62) {
   Add-Type -AssemblyName System.Drawing
   $img = $null
   $bmp = $null
@@ -192,6 +192,7 @@ try {
 finally {
   Pop-Location
 }
+
 
 
 
