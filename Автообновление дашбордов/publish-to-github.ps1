@@ -49,7 +49,7 @@ function Remove-LargeGalleryRefs([string]$HtmlPath, [string]$JsonPath) {
   }
 }
 
-function ConvertTo-WebPhoto([string]$SourcePath, [string]$DestPath, [int]$MaxSide = 900, [int64]$Quality = 62) {
+function ConvertTo-WebPhoto([string]$SourcePath, [string]$DestPath, [int]$MaxSide = 700, [int64]$Quality = 50) {
   Add-Type -AssemblyName System.Drawing
   $img = $null
   $bmp = $null
@@ -82,6 +82,18 @@ function ConvertTo-WebPhoto([string]$SourcePath, [string]$DestPath, [int]$MaxSid
   }
 }
 
+function ConvertTo-WebPhotoDataUri([string]$SourcePath) {
+  $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("dino-photo-" + [guid]::NewGuid().ToString("N") + ".jpg")
+  try {
+    ConvertTo-WebPhoto -SourcePath $SourcePath -DestPath $tmp
+    $bytes = [System.IO.File]::ReadAllBytes($tmp)
+    return 'data:image/jpeg;base64,' + [Convert]::ToBase64String($bytes)
+  }
+  finally {
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force }
+  }
+}
+
 function Publish-LightGallery([string]$HtmlPath, [string]$JsonPath, [string]$ProjectRoot, [string]$RepoRoot) {
   if (-not (Test-Path -LiteralPath $HtmlPath)) { return }
   $html = Get-Content -LiteralPath $HtmlPath -Encoding UTF8 -Raw
@@ -90,13 +102,12 @@ function Publish-LightGallery([string]$HtmlPath, [string]$JsonPath, [string]$Pro
 
   $lightRoot = Join-Path $RepoRoot 'photos-light'
   if (Test-Path -LiteralPath $lightRoot) { Remove-Item -LiteralPath $lightRoot -Recurse -Force }
-  New-Item -ItemType Directory -Force -Path $lightRoot | Out-Null
 
   $gal = $m.Groups[1].Value | ConvertFrom-Json
   $converted = 0
+  $totalBytes = 0
   foreach ($g in $gal) {
     $newFiles = @()
-    $fileIndex = 0
     foreach ($f in @($g.fls)) {
       if ($f.t -eq 'vid' -or $f.url -match '\.mp4($|[?#])') { continue }
       $relativeUrl = [System.Uri]::UnescapeDataString([string]$f.url).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
@@ -104,21 +115,18 @@ function Publish-LightGallery([string]$HtmlPath, [string]$JsonPath, [string]$Pro
       if (-not (Test-Path -LiteralPath $source)) { continue }
       if ([System.IO.Path]::GetExtension($source) -notmatch '^\.(jpg|jpeg|png)$') { continue }
 
-      $groupDir = '{0:D2}' -f [int]$g.idx
-      $destRel = ('photos-light/{0}/{1:D3}.jpg' -f $groupDir, $fileIndex)
-      $dest = Join-Path $RepoRoot ($destRel.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
       try {
-        ConvertTo-WebPhoto -SourcePath $source -DestPath $dest
+        $dataUri = ConvertTo-WebPhotoDataUri -SourcePath $source
       }
       catch {
         Write-Host "Skip photo: $source ($($_.Exception.Message))"
         continue
       }
-      $f.url = $destRel
+      $f.url = $dataUri
       $f.t = 'img'
       $newFiles += $f
-      $fileIndex++
       $converted++
+      $totalBytes += [int64]([Math]::Floor(($dataUri.Length * 3) / 4))
     }
     $g.fls = @($newFiles)
     $g.cnt = @($newFiles).Count
@@ -130,12 +138,15 @@ function Publish-LightGallery([string]$HtmlPath, [string]$JsonPath, [string]$Pro
 
   if (Test-Path -LiteralPath $JsonPath) {
     $data = Get-Content -LiteralPath $JsonPath -Encoding UTF8 -Raw | ConvertFrom-Json
-    $data.photos = $gal
+    $jsonPhotos = @()
+    foreach ($g in $gal) {
+      $jsonPhotos += [ordered]@{ icon=$g.icon; cat=$g.cat; phase=$g.phase; cnt=$g.cnt; fls=@(); idx=$g.idx }
+    }
+    $data.photos = $jsonPhotos
     [System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $JsonPath), ($data | ConvertTo-Json -Depth 50 -Compress), [System.Text.UTF8Encoding]::new($false))
   }
 
-  $bytes = (Get-ChildItem -LiteralPath $lightRoot -Recurse -File | Measure-Object Length -Sum).Sum
-  Write-Host "Light gallery: $converted photo(s), $([math]::Round($bytes / 1MB, 1)) MB"
+  Write-Host "Light gallery: $converted inline photo(s), about $([math]::Round($totalBytes / 1MB, 1)) MB"
 }
 
 $updateScript = Join-Path $ProjectRoot 'Автообновление дашбордов\update-dashboards.ps1'
@@ -192,6 +203,7 @@ try {
 finally {
   Pop-Location
 }
+
 
 
 
