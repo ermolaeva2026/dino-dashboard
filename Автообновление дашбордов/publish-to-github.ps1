@@ -79,7 +79,7 @@ try {
   if (Test-Path -LiteralPath $repoPhotos) { Remove-Item -LiteralPath $repoPhotos -Recurse -Force }
   Remove-LargeGalleryRefs -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json')
 
-  & git add -A .nojekyll index.html work.html PRK-2026-DS_dashboard-data.json "Автообновление дашбордов" "Фотофиксация работ"
+  & git add -A
   if ($LASTEXITCODE -ne 0) { throw "git add завершился с ошибкой $LASTEXITCODE" }
 
   $changes = & git status --porcelain
@@ -94,12 +94,16 @@ try {
 
   & git push origin main
   if ($LASTEXITCODE -ne 0) { throw "git push завершился с ошибкой $LASTEXITCODE" }
+  & git push origin main:gh-pages
+  if ($LASTEXITCODE -ne 0) { throw "git push gh-pages завершился с ошибкой $LASTEXITCODE" }
 
   Write-Host "Published to GitHub Pages: https://ermolaeva2026.github.io/dino-dashboard/"
 }
 finally {
   Pop-Location
 }
+
+
 
 
 
