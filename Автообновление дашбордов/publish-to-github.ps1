@@ -77,12 +77,9 @@ try {
 
   $repoPhotos = Join-Path $RepoRoot 'Фотофиксация работ'
   if (Test-Path -LiteralPath $repoPhotos) { Remove-Item -LiteralPath $repoPhotos -Recurse -Force }
-  Copy-Item -LiteralPath (Join-Path $ProjectRoot 'Фотофиксация работ') -Destination $RepoRoot -Recurse -Force
-
-  Remove-LargeFiles -Root $repoPhotos -MaxBytes 95000000
   Remove-LargeGalleryRefs -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json')
 
-  & git add .nojekyll index.html work.html PRK-2026-DS_dashboard-data.json "Автообновление дашбордов" "Фотофиксация работ"
+  & git add -A .nojekyll index.html work.html PRK-2026-DS_dashboard-data.json "Автообновление дашбордов" "Фотофиксация работ"
   if ($LASTEXITCODE -ne 0) { throw "git add завершился с ошибкой $LASTEXITCODE" }
 
   $changes = & git status --porcelain
@@ -103,5 +100,6 @@ try {
 finally {
   Pop-Location
 }
+
 
 
