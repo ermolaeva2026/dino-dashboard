@@ -66,6 +66,7 @@ try {
   Copy-ProjectFile 'PRK-2026-DS_Dashboard.html' 'index.html'
   Copy-ProjectFile 'PRK-2026-DS_Рабочий_дашборд.html' 'work.html'
   Copy-ProjectFile 'PRK-2026-DS_dashboard-data.json' 'PRK-2026-DS_dashboard-data.json'
+  Set-Content -LiteralPath (Join-Path $RepoRoot '.nojekyll') -Value '' -Encoding ASCII
 
   $repoAutomation = Join-Path $RepoRoot 'Автообновление дашбордов'
   New-Item -ItemType Directory -Force -Path $repoAutomation | Out-Null
@@ -81,7 +82,7 @@ try {
   Remove-LargeFiles -Root $repoPhotos -MaxBytes 95000000
   Remove-LargeGalleryRefs -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json')
 
-  & git add index.html work.html PRK-2026-DS_dashboard-data.json "Автообновление дашбордов" "Фотофиксация работ"
+  & git add .nojekyll index.html work.html PRK-2026-DS_dashboard-data.json "Автообновление дашбордов" "Фотофиксация работ"
   if ($LASTEXITCODE -ne 0) { throw "git add завершился с ошибкой $LASTEXITCODE" }
 
   $changes = & git status --porcelain
@@ -102,4 +103,5 @@ try {
 finally {
   Pop-Location
 }
+
 
