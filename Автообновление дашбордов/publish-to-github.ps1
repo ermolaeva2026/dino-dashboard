@@ -49,6 +49,95 @@ function Remove-LargeGalleryRefs([string]$HtmlPath, [string]$JsonPath) {
   }
 }
 
+function ConvertTo-WebPhoto([string]$SourcePath, [string]$DestPath, [int]$MaxSide = 1400, [int64]$Quality = 76) {
+  Add-Type -AssemblyName System.Drawing
+  $img = $null
+  $bmp = $null
+  $gfx = $null
+  $encoderParams = $null
+  try {
+    $img = [System.Drawing.Image]::FromFile($SourcePath)
+    $scale = [Math]::Min(1.0, $MaxSide / [double]([Math]::Max($img.Width, $img.Height)))
+    $w = [Math]::Max(1, [int][Math]::Round($img.Width * $scale))
+    $h = [Math]::Max(1, [int][Math]::Round($img.Height * $scale))
+    $bmp = New-Object System.Drawing.Bitmap($w, $h)
+    $gfx = [System.Drawing.Graphics]::FromImage($bmp)
+    $gfx.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $gfx.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $gfx.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $gfx.DrawImage($img, 0, 0, $w, $h)
+
+    $dir = Split-Path -Parent $DestPath
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
+    $encoderParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
+    $encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, $Quality)
+    $bmp.Save($DestPath, $codec, $encoderParams)
+  }
+  finally {
+    if ($encoderParams) { $encoderParams.Dispose() }
+    if ($gfx) { $gfx.Dispose() }
+    if ($bmp) { $bmp.Dispose() }
+    if ($img) { $img.Dispose() }
+  }
+}
+
+function Publish-LightGallery([string]$HtmlPath, [string]$JsonPath, [string]$ProjectRoot, [string]$RepoRoot) {
+  if (-not (Test-Path -LiteralPath $HtmlPath)) { return }
+  $html = Get-Content -LiteralPath $HtmlPath -Encoding UTF8 -Raw
+  $m = [regex]::Match($html, '(?s)var GAL=(.*?);\s*var gC=')
+  if (-not $m.Success) { return }
+
+  $lightRoot = Join-Path $RepoRoot 'photos-light'
+  if (Test-Path -LiteralPath $lightRoot) { Remove-Item -LiteralPath $lightRoot -Recurse -Force }
+  New-Item -ItemType Directory -Force -Path $lightRoot | Out-Null
+
+  $gal = $m.Groups[1].Value | ConvertFrom-Json
+  $converted = 0
+  foreach ($g in $gal) {
+    $newFiles = @()
+    $fileIndex = 0
+    foreach ($f in @($g.fls)) {
+      if ($f.t -eq 'vid' -or $f.url -match '\.mp4($|[?#])') { continue }
+      $relativeUrl = [System.Uri]::UnescapeDataString([string]$f.url).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+      $source = Join-Path $ProjectRoot $relativeUrl
+      if (-not (Test-Path -LiteralPath $source)) { continue }
+      if ([System.IO.Path]::GetExtension($source) -notmatch '^\.(jpg|jpeg|png)$') { continue }
+
+      $groupDir = '{0:D2}' -f [int]$g.idx
+      $destRel = ('photos-light/{0}/{1:D3}.jpg' -f $groupDir, $fileIndex)
+      $dest = Join-Path $RepoRoot ($destRel.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+      try {
+        ConvertTo-WebPhoto -SourcePath $source -DestPath $dest
+      }
+      catch {
+        Write-Host "Skip photo: $source ($($_.Exception.Message))"
+        continue
+      }
+      $f.url = $destRel
+      $f.t = 'img'
+      $newFiles += $f
+      $fileIndex++
+      $converted++
+    }
+    $g.fls = @($newFiles)
+    $g.cnt = @($newFiles).Count
+  }
+
+  $newGal = $gal | ConvertTo-Json -Depth 40 -Compress
+  $html = $html.Substring(0, $m.Groups[1].Index) + $newGal + $html.Substring($m.Groups[1].Index + $m.Groups[1].Length)
+  [System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $HtmlPath), $html, [System.Text.UTF8Encoding]::new($false))
+
+  if (Test-Path -LiteralPath $JsonPath) {
+    $data = Get-Content -LiteralPath $JsonPath -Encoding UTF8 -Raw | ConvertFrom-Json
+    $data.photos = $gal
+    [System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $JsonPath), ($data | ConvertTo-Json -Depth 50 -Compress), [System.Text.UTF8Encoding]::new($false))
+  }
+
+  $bytes = (Get-ChildItem -LiteralPath $lightRoot -Recurse -File | Measure-Object Length -Sum).Sum
+  Write-Host "Light gallery: $converted photo(s), $([math]::Round($bytes / 1MB, 1)) MB"
+}
+
 $updateScript = Join-Path $ProjectRoot 'Автообновление дашбордов\update-dashboards.ps1'
 if (-not (Test-Path -LiteralPath $updateScript)) { throw "Не найден генератор дашбордов: $updateScript" }
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git'))) { throw "Не найден GitHub-репозиторий: $RepoRoot" }
@@ -78,6 +167,7 @@ try {
   $repoPhotos = Join-Path $RepoRoot 'Фотофиксация работ'
   if (Test-Path -LiteralPath $repoPhotos) { Remove-Item -LiteralPath $repoPhotos -Recurse -Force }
   Remove-LargeGalleryRefs -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json')
+  Publish-LightGallery -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json') -ProjectRoot $ProjectRoot -RepoRoot $RepoRoot
 
   & git add -A
   if ($LASTEXITCODE -ne 0) { throw "git add завершился с ошибкой $LASTEXITCODE" }
@@ -102,6 +192,8 @@ try {
 finally {
   Pop-Location
 }
+
+
 
 
 
