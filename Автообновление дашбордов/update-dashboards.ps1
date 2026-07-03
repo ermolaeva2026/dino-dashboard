@@ -23,8 +23,62 @@ function Format-DateShort($Value) {
   try { return ([datetime]$Value).ToString('dd.MM') } catch { return '' }
 }
 
+function Format-Rub($Value) {
+  if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return '—' }
+  try {
+    $rounded = [math]::Round([double]$Value, 0)
+    return ($rounded.ToString('N0', [System.Globalization.CultureInfo]::GetCultureInfo('ru-RU')).Replace(' ', [char]0x00A0) + ' ₽')
+  } catch {
+    return '—'
+  }
+}
+
 function ConvertTo-JsLiteral($Object, [int]$Depth = 20) {
   ($Object | ConvertTo-Json -Depth $Depth -Compress).Replace('<', '\u003c').Replace('>', '\u003e').Replace('&', '\u0026')
+}
+
+function Read-XlsxCellNumber([string]$Path, [string]$SheetEntry, [string]$CellRef) {
+  Add-Type -AssemblyName System.IO.Compression
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zip = $null
+  $stream = $null
+  try {
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Read)
+    $entry = $zip.GetEntry($SheetEntry)
+    if (-not $entry) { return $null }
+    $reader = New-Object System.IO.StreamReader($entry.Open())
+    try { $xmlText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+
+    $xml = New-Object System.Xml.XmlDocument
+    $xml.PreserveWhitespace = $false
+    $xml.LoadXml($xmlText)
+    $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $ns.AddNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
+    $node = $xml.SelectSingleNode("//x:c[@r='$CellRef']/x:v", $ns)
+    if (-not $node) { return $null }
+    return [double]::Parse($node.InnerText, [System.Globalization.CultureInfo]::InvariantCulture)
+  }
+  finally {
+    if ($zip) { $zip.Dispose() }
+    if ($stream) { $stream.Dispose() }
+  }
+}
+
+function Get-PhaseBudgetMap([string]$SmetaPath) {
+  $map = @{}
+  if (-not (Test-Path -LiteralPath $SmetaPath)) { return $map }
+  $sheetEntry = 'xl/worksheets/sheet1.xml'
+  $map['3'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F16'
+  $map['4'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F7'
+  $map['5'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F21'
+  $map['6'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F12'
+  return $map
+}
+
+function Get-PhaseBudgetLabel($BudgetMap, [string]$PhaseId) {
+  if ($BudgetMap.ContainsKey($PhaseId)) { return Format-Rub $BudgetMap[$PhaseId] }
+  return '—'
 }
 
 function Get-StatusClass([int]$Pct, [datetime]$Start, [datetime]$Finish, [bool]$Milestone, [datetime]$Ref) {
@@ -92,12 +146,14 @@ $workDashboardPath = Join-ProjectPath 'PRK-2026-DS_Рабочий_дашборд
 $mainDashboardPath = Join-ProjectPath 'PRK-2026-DS_Dashboard.html'
 $photoRoot = Join-ProjectPath 'Фотофиксация работ'
 $dataPath = Join-ProjectPath 'PRK-2026-DS_dashboard-data.json'
+$smetaPath = Join-ProjectPath 'Смета_Динопарк_PRK-2026-DS.xlsx'
 
 if (-not (Test-Path -LiteralPath $ksgPath)) { throw "Не найден КСГ: $ksgPath" }
 if (-not (Test-Path -LiteralPath $workDashboardPath)) { throw "Не найден рабочий дашборд: $workDashboardPath" }
 if (-not (Test-Path -LiteralPath $mainDashboardPath)) { throw "Не найден основной дашборд: $mainDashboardPath" }
 
 $ref = Get-Date
+$phaseBudgetMap = Get-PhaseBudgetMap $smetaPath
 $tasks = New-Object System.Collections.Generic.List[object]
 $phaseSummaries = New-Object System.Collections.Generic.List[object]
 $bigPhases = New-Object System.Collections.Generic.List[object]
@@ -147,7 +203,7 @@ try {
         act_start = $(if ($pct -gt 0) { Format-DateRu $start } else { '' })
         act_finish = $(if ($pct -ge 100) { Format-DateRu $finish } else { '' })
         pct = $pct
-        budget = '—'
+        budget = (Get-PhaseBudgetLabel $phaseBudgetMap $Matches[1])
         status = $status
         slip = $(if ($status -eq 'late') { '+1 дн.' } elseif ($status -eq 'done') { 'в срок' } else { 'в графике' })
         slipover = ($status -eq 'late')
@@ -426,6 +482,9 @@ Write-Host "KSG: $ksgDate"
 Write-Host "Tasks: $($allTasks.Count), done: $doneCount, progress: $progress%"
 Write-Host "Photos: $photoTotal"
 Write-Host "Data: $dataPath"
+
+
+
 
 
 
