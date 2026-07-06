@@ -126,8 +126,15 @@ function Add-BigDashboardTask($PhaseMap, [string]$PhaseCode, [string]$Name, $Sta
 
 function Get-DocStatus([string[]]$Patterns) {
   $files = @()
+  $roots = @(
+    $ProjectRoot,
+    (Join-ProjectPath 'Документы PMO'),
+    (Join-ProjectPath 'Прочие документы')
+  ) | Where-Object { Test-Path -LiteralPath $_ }
   foreach ($pattern in $Patterns) {
-    $files += Get-ChildItem -LiteralPath $ProjectRoot -File -Filter $pattern -ErrorAction SilentlyContinue
+    foreach ($root in $roots) {
+      $files += Get-ChildItem -LiteralPath $root -File -Filter $pattern -ErrorAction SilentlyContinue
+    }
   }
   $file = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1
   if ($file) {
@@ -482,6 +489,7 @@ Write-Host "KSG: $ksgDate"
 Write-Host "Tasks: $($allTasks.Count), done: $doneCount, progress: $progress%"
 Write-Host "Photos: $photoTotal"
 Write-Host "Data: $dataPath"
+
 
 
 
