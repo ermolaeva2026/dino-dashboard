@@ -497,6 +497,7 @@ document.addEventListener("DOMContentLoaded",function(){GAL.forEach(function(g,i
 "@
 
 $mainHtml = [System.IO.File]::ReadAllText($mainDashboardPath, [System.Text.Encoding]::UTF8)
+$mainHtml = [regex]::Replace($mainHtml, 'Обновлено:\s*\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}', 'Обновлено: ' + $stamp)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<script>\s*var G0=.*?</script>\s*<div class="photo-section">', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $galleryScript }, 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)const phases\s*=\s*\[.*?\];', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) 'const phases = ' + (ConvertTo-JsLiteral $bigPhases 30) + ';' }, 1)
 
