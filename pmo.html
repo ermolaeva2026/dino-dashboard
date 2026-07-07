@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Проекты «Парк Сказка» — PM Ермолаева И.М.</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #151b23;
+      --ink: #f0f6fc;
+      --muted: #8b949e;
+      --line: #30363d;
+      --green: #56d364;
+      --amber: #e3b341;
+      --red: #ff7b72;
+      --blue: #79c0ff;
+      --slate: #9da7b3;
+      --soft-green: rgba(46, 160, 67, 0.18);
+      --soft-amber: rgba(187, 128, 9, 0.20);
+      --soft-red: rgba(248, 81, 73, 0.18);
+      --soft-blue: rgba(88, 166, 255, 0.18);
+      --soft-slate: rgba(139, 148, 158, 0.14);
+      --shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.35;
+    }
+
+    main {
+      width: min(1320px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 26px 0 42px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.03;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .stamp {
+      text-align: right;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .stamp strong {
+      display: block;
+      color: var(--ink);
+      font-size: 18px;
+      margin-bottom: 3px;
+    }
+
+    .top-kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .kpi,
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi {
+      padding: 16px;
+      min-height: 96px;
+    }
+
+    .kpi .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .kpi .value {
+      font-size: 32px;
+      font-weight: 800;
+    }
+
+    .kpi .note {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      padding: 16px;
+      min-height: 430px;
+      display: grid;
+      gap: 13px;
+      align-content: start;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .idx {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .name {
+      margin-top: 2px;
+      font-size: 21px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .code {
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .b-green { color: var(--green); background: var(--soft-green); }
+    .b-amber { color: var(--amber); background: var(--soft-amber); }
+    .b-red { color: var(--red); background: var(--soft-red); }
+    .b-blue { color: var(--blue); background: var(--soft-blue); }
+    .b-slate { color: var(--slate); background: var(--soft-slate); }
+
+    .dates {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .date-box {
+      border: 1px solid var(--line);
+      background: #0f1620;
+      border-radius: 8px;
+      padding: 9px;
+      min-height: 64px;
+    }
+
+    .date-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+
+    .date-box strong {
+      font-size: 15px;
+      white-space: nowrap;
+    }
+
+    .delta {
+      display: grid;
+      place-items: center;
+      min-width: 70px;
+      border-radius: 8px;
+      font-weight: 900;
+      font-size: 16px;
+      border: 1px solid var(--line);
+      background: var(--soft-slate);
+      color: var(--slate);
+    }
+
+    .delta.good { color: var(--green); background: var(--soft-green); border-color: #bee6cc; }
+    .delta.bad { color: var(--red); background: var(--soft-red); border-color: #f3c3bf; }
+    .delta.warn { color: var(--amber); background: var(--soft-amber); border-color: #efd49a; }
+
+    .progress-row {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .ring {
+      --pct: 0;
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--blue) calc(var(--pct) * 1%), #26313d 0);
+      position: relative;
+      border: 1px solid var(--line);
+    }
+
+    .ring::before {
+      content: "";
+      position: absolute;
+      inset: 10px;
+      border-radius: 50%;
+      background: var(--panel);
+    }
+
+    .ring strong {
+      position: relative;
+      z-index: 1;
+      font-size: 17px;
+    }
+
+    .ring small {
+      display: block;
+      position: relative;
+      z-index: 1;
+      color: var(--muted);
+      font-size: 10px;
+      margin-top: -2px;
+    }
+
+    .task-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .task {
+      border: 1px solid var(--line);
+      background: #0f1620;
+      border-radius: 7px;
+      padding: 8px;
+      min-height: 58px;
+    }
+
+    .task strong {
+      display: block;
+      font-size: 19px;
+      line-height: 1;
+      margin-bottom: 5px;
+    }
+
+    .task span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.15;
+    }
+
+    .budget-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .budget-cell {
+      border: 1px solid rgba(51, 194, 255, 0.28);
+      background: rgba(12, 48, 70, 0.74);
+      border-radius: 7px;
+      padding: 8px 7px 7px;
+      min-height: 42px;
+      box-shadow: inset 0 0 20px rgba(15, 116, 160, 0.12);
+    }
+
+    .budget-cell strong {
+      display: block;
+      color: #ffffff;
+      font-size: 14px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .budget-cell span {
+      display: block;
+      margin-top: 5px;
+      color: #85cbe8;
+      font-size: 7px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .budget-cell.good strong { color: var(--green); }
+    .budget-cell.warn strong { color: var(--amber); }
+    .budget-cell.bad strong { color: var(--red); }
+
+    .section-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 7px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .phase-rotator {
+      min-height: 30px;
+    }
+
+    .phase-rotator .chip {
+      display: none;
+    }
+
+    .phase-rotator .chip.is-active {
+      display: inline-flex;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      padding: 4px 7px;
+      background: var(--soft-slate);
+      color: var(--slate);
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .chip.green { color: var(--green); background: var(--soft-green); }
+    .chip.amber { color: var(--amber); background: var(--soft-amber); }
+    .chip.red { color: var(--red); background: var(--soft-red); }
+    .chip.blue { color: var(--blue); background: var(--soft-blue); }
+
+    .stages,
+    .work-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .stage,
+    .work {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+
+    .stage:last-child,
+    .work:last-child {
+      border-bottom: 0;
+    }
+
+    .stage .dot {
+      color: var(--blue);
+      font-weight: 900;
+      margin-right: 4px;
+    }
+
+    .stage .done { color: var(--green); }
+    .stage .risk { color: var(--red); }
+
+    .date-short,
+    .slip {
+      white-space: nowrap;
+      color: var(--muted);
+      font-weight: 750;
+    }
+
+    .slip.good { color: var(--green); }
+    .slip.bad { color: var(--red); }
+    .slip.warn { color: var(--amber); }
+
+    .work-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .work-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .work-count {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .pct {
+      color: var(--blue);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .source {
+      color: var(--muted);
+      font-size: 11px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+
+    footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1160px) {
+      .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .top-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      main { width: min(100% - 20px, 1320px); padding-top: 16px; }
+      .hero { display: block; }
+      .stamp { text-align: left; margin-top: 10px; }
+      .cards, .top-kpis, .dates, .progress-row { grid-template-columns: 1fr; }
+      .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card { min-height: auto; }
+    }
+
+    @media print {
+      body { background: white; }
+      main { width: 100%; padding: 0; }
+      .kpi, .card { box-shadow: none; break-inside: avoid; }
+    }
+
+    /* Compact neon board, close to the provided reference visual. */
+    :root {
+      --bg: #061520;
+      --panel: #071b27;
+      --panel-2: #0b2332;
+      --ink: #f3fbff;
+      --muted: #5c86a1;
+      --line: rgba(29, 121, 157, 0.35);
+      --cyan: #4fc3f7;
+      --cyan-2: #8be1ff;
+      --green: #23e682;
+      --amber: #ffc23a;
+      --red: #ff5d73;
+      --blue: #58d3ff;
+      --soft-green: rgba(0, 177, 109, 0.15);
+      --soft-amber: rgba(255, 184, 0, 0.13);
+      --soft-red: rgba(255, 77, 109, 0.13);
+      --soft-blue: rgba(58, 190, 255, 0.14);
+      --soft-slate: rgba(70, 135, 165, 0.12);
+      --shadow: none;
+    }
+
+    body {
+      background:
+        linear-gradient(90deg, rgba(68, 190, 224, 0.16) 0 4px, transparent 4px calc(100% - 4px), rgba(68, 190, 224, 0.16) calc(100% - 4px)),
+        var(--bg);
+    }
+
+    main {
+      width: min(1800px, calc(100% - 10px));
+      padding: 6px 0 10px;
+    }
+
+    .hero {
+      margin: 0 -8px 8px;
+      padding: 6px 8px 6px;
+      background: rgba(45, 122, 151, 0.32);
+      border-bottom: 1px solid rgba(89, 208, 255, 0.12);
+    }
+
+    h1 {
+      font-size: 16px;
+      color: var(--ink);
+    }
+
+    .sub,
+    .stamp {
+      font-size: 10px;
+      color: #7ea8bd;
+    }
+
+    .top-kpis {
+      display: none;
+    }
+
+    .cards {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .portfolio-groups {
+      display: grid;
+      gap: 9px;
+    }
+
+    .project-section {
+      border-top: 1px solid rgba(77, 190, 236, 0.25);
+      padding-top: 6px;
+    }
+
+    .project-section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 5px;
+      color: #8fe6ff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .project-section-title span {
+      color: #5f8ca5;
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+
+    .project-section .cards {
+      display: grid;
+      grid-template-columns: repeat(var(--cols), 250px);
+      gap: 6px;
+      justify-content: start;
+    }
+
+    .card {
+      min-height: 0;
+      padding: 6px;
+      gap: 7px;
+      background: transparent;
+      border: 0;
+      border-right: 1px solid rgba(54, 147, 181, 0.28);
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .card-head {
+      padding: 0;
+      border: 0;
+    }
+
+    .idx {
+      color: #53768b;
+      font-size: 9px;
+      letter-spacing: 0.22em;
+    }
+
+    .name {
+      font-size: 13px;
+      color: #f7fcff;
+      text-shadow: 0 0 10px rgba(79, 195, 247, 0.16);
+    }
+
+    .code,
+    .badge {
+      display: none;
+    }
+
+    .dates {
+      position: relative;
+      grid-template-columns: 1fr;
+      gap: 4px;
+      padding: 8px 9px 6px;
+      min-height: 78px;
+      border: 1px solid rgba(42, 145, 199, 0.72);
+      border-radius: 14px;
+      background:
+        radial-gradient(circle at 88% 22%, rgba(123, 219, 255, 0.35), transparent 13%),
+        linear-gradient(135deg, rgba(17, 39, 69, 0.95), rgba(11, 29, 52, 0.98));
+    }
+
+    .dates::after {
+      content: "";
+      position: absolute;
+      right: 12px;
+      top: 20px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #8bdfff;
+      box-shadow: 0 0 18px rgba(139, 223, 255, 0.95);
+    }
+
+    .date-box {
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    .date-box span {
+      margin: 0 0 1px;
+      color: #83d9ff;
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .date-box strong {
+      color: #ffffff;
+      font-size: 15px;
+      line-height: 1.1;
+    }
+
+    .date-box:nth-child(2) strong {
+      color: var(--red);
+    }
+
+    .card.is-complete .date-box:nth-child(2) span {
+      font-size: 0;
+    }
+
+    .card.is-complete .date-box:nth-child(2) span::after {
+      content: "ДАТА ЗАПУСКА ФАКТ";
+      font-size: 9px;
+    }
+
+    .card.is-complete .date-box:nth-child(2) strong {
+      color: var(--green);
+    }
+
+    .delta {
+      display: inline-flex;
+      width: fit-content;
+      min-width: 46px;
+      min-height: 18px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: rgba(255, 93, 115, 0.12);
+      border: 1px solid rgba(255, 93, 115, 0.42);
+      color: var(--red);
+      font-size: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .delta.good {
+      color: var(--green);
+      background: rgba(35, 230, 130, 0.12);
+      border-color: rgba(35, 230, 130, 0.35);
+    }
+
+    .progress-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-areas: "ready pct" "bar bar" "tasks tasks";
+      gap: 6px 8px;
+      align-items: center;
+    }
+
+    .progress-row::before {
+      content: "ГОТОВНОСТЬ";
+      grid-area: ready;
+      color: #79c6e9;
+      font-size: 9px;
+      letter-spacing: .08em;
+    }
+
+    .ring {
+      grid-area: pct;
+      width: auto;
+      height: auto;
+      border: 0;
+      background: transparent;
+    }
+
+    .ring::before {
+      display: none;
+    }
+
+    .ring strong {
+      position: static;
+      color: #ffffff;
+      font-size: 19px;
+      line-height: 1;
+      text-shadow: 0 0 14px rgba(139, 223, 255, 0.22);
+    }
+
+    .ring::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 24px;
+      height: 6px;
+      border-radius: 999px;
+      background:
+        linear-gradient(90deg, var(--cyan) calc(var(--pct) * 1%), rgba(52, 91, 112, 0.58) 0);
+      box-shadow: inset 0 0 0 1px rgba(112, 205, 242, 0.14);
+    }
+
+    .progress-row {
+      position: relative;
+      padding-top: 0;
+    }
+
+    .task-grid {
+      grid-area: tasks;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      padding-top: 7px;
+    }
+
+    .task {
+      min-height: 40px;
+      padding: 7px 6px 6px;
+      text-align: center;
+      background: rgba(7, 54, 77, 0.82);
+      border: 1px solid rgba(51, 184, 237, 0.56);
+      border-radius: 10px;
+    }
+
+    .task strong {
+      color: var(--cyan);
+      font-size: 18px;
+      line-height: 1;
+      margin: 0 0 5px;
+    }
+
+    .task:nth-child(2) {
+      background: rgba(0, 87, 59, 0.58);
+      border-color: rgba(35, 230, 130, 0.46);
+    }
+
+    .task:nth-child(3) {
+      background: rgba(80, 63, 7, 0.60);
+      border-color: rgba(255, 194, 58, 0.52);
+    }
+
+    .task:nth-child(4) {
+      background: rgba(82, 29, 44, 0.62);
+      border-color: rgba(255, 93, 115, 0.50);
+    }
+
+    .task:nth-child(2) strong { color: var(--green); }
+    .task:nth-child(3) strong { color: var(--amber); }
+    .task:nth-child(4) strong { color: var(--red); }
+
+    .task span {
+      color: #85cbe8;
+      font-size: 7px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .task:nth-child(2) span { color: #7ff0b0; }
+    .task:nth-child(3) span { color: #ffd96a; }
+    .task:nth-child(4) span { color: #ff9cab; }
+
+    .budget-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+    }
+
+    .budget-cell {
+      min-height: 38px;
+      padding: 7px 6px 6px;
+      text-align: center;
+      border-radius: 10px;
+    }
+
+    .budget-cell strong {
+      color: #ffffff;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .budget-cell span {
+      color: #85cbe8;
+      font-size: 7px;
+      font-weight: 900;
+      margin-top: 5px;
+    }
+
+    .section-title,
+    .work-title {
+      color: #4d7d97;
+      font-size: 9px;
+      letter-spacing: .22em;
+    }
+
+    .phase-rotator {
+      min-height: 26px;
+      padding-bottom: 2px;
+      border-bottom: 1px dotted rgba(77, 190, 236, 0.28);
+      justify-content: center;
+    }
+
+    .chip {
+      min-width: 100%;
+      justify-content: space-between;
+      padding: 5px 8px;
+      font-size: 10px;
+      border: 1px solid rgba(52, 188, 232, 0.52);
+      background: rgba(10, 54, 73, 0.82);
+      color: #d8f5ff;
+      box-shadow: inset 0 0 18px rgba(28, 184, 231, 0.10);
+    }
+
+    .chip::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+    }
+
+    .chip.green::before { background: var(--green); box-shadow: 0 0 12px var(--green); }
+    .chip.amber::before { background: var(--amber); box-shadow: 0 0 12px var(--amber); }
+    .chip.red::before { background: var(--red); box-shadow: 0 0 12px var(--red); }
+
+    .stage,
+    .work {
+      grid-template-columns: 1fr auto auto;
+      padding: 4px 6px;
+      border: 1px solid rgba(35, 137, 181, 0.38);
+      border-radius: 9px;
+      background: rgba(6, 28, 40, 0.76);
+      color: #d7f5ff;
+      font-size: 10px;
+    }
+
+    .stage .dot {
+      color: var(--amber);
+    }
+
+    .date-short {
+      color: #ffd35d;
+      font-size: 10px;
+    }
+
+    .slip {
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(255, 93, 115, 0.16);
+      color: var(--red);
+      border: 1px solid rgba(255, 93, 115, 0.36);
+      font-size: 9px;
+    }
+
+    .slip.good {
+      background: rgba(35, 230, 130, 0.12);
+      color: var(--green);
+      border-color: rgba(35, 230, 130, 0.3);
+    }
+
+    .work-head {
+      margin-bottom: 4px;
+    }
+
+    .work-count {
+      color: #79c6e9;
+      font-size: 10px;
+    }
+
+    .work-list {
+      gap: 4px;
+    }
+
+    .work {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .work > div:nth-child(2) {
+      display: none;
+    }
+
+    .pct {
+      color: var(--cyan);
+      font-size: 10px;
+    }
+
+    .source,
+    footer {
+      display: none;
+    }
+
+    @media (max-width: 1500px) {
+      .project-section .cards {
+        grid-template-columns: repeat(var(--cols), 250px);
+      }
+    }
+
+    @media (max-width: 1000px) {
+      .project-section .cards {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .cards,
+      .project-section .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <h1>Проекты «Парк Сказка» — PM Ермолаева И.М.</h1>
+        <p class="sub">Контроль реализации · Статус на 07.07.2026 · Структура по примеру PMO dashboard</p>
+      </div>
+      <div class="stamp">
+        <strong>PMO launch view</strong>
+        ДиноПарк: данные из КСГ<br>
+        Остальные: паспорта / WBS
+      </div>
+    </header>
+
+    <section class="top-kpis" aria-label="Сводка портфеля">
+      <div class="kpi"><div class="label">Проектов</div><div class="value">7</div><div class="note">верхний уровень портфеля</div></div>
+      <div class="kpi"><div class="label">Ближ. запуск</div><div class="value">21.07</div><div class="note">Молния</div></div>
+      <div class="kpi"><div class="label">В работе</div><div class="value">5</div><div class="note">КСГ/WBS: DS 3 + AZ 1 + ML 1</div></div>
+      <div class="kpi"><div class="label">С отклонением</div><div class="value">3</div><div class="note">DS по этапам, ML и AZ по сроку</div></div>
+    </section>
+
+    <section class="cards">
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 01</div>
+            <div class="name">ДиноПарк. Модернизация</div>
+            <div class="code">PRK-2026-DS · КСГ автосборка 07.07.2026</div>
+          </div>
+          <span class="badge b-amber">в работе</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>01.09.2026</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>24.08.2026</strong></div>
+          <div class="delta good">−8 дн</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:56"><strong>56%</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>171</strong><span>Задач всего</span></div>
+            <div class="task"><strong>91</strong><span>Выполнено</span></div>
+            <div class="task"><strong>3</strong><span>В работе</span></div>
+            <div class="task"><strong>77</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>15,77 млн</strong><span>План с резервом</span></div>
+          <div class="budget-cell bad"><strong>14,35 млн</strong><span>Факт/прогноз</span></div>
+          <div class="budget-cell good"><strong>91%</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip blue">Ф3. ВЭД 42%</span>
+            <span class="chip amber">Ф4. Реставрация 60%</span>
+            <span class="chip amber">Ф5. СМР 69%</span>
+            <span class="chip amber">Ф6. Детские зоны 75%</span>
+            <span class="chip green">Ф7. Электромонтаж 84%</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot risk">●</span>Реставрация</div><div class="date-short">30.06</div><div class="slip bad">+7 дн</div></div>
+            <div class="stage"><div><span class="dot">●</span>Аниматроники на площадке</div><div class="date-short">07.08</div><div class="slip good">0 дн</div></div>
+            <div class="stage"><div><span class="dot done">●</span>Grand Opening</div><div class="date-short">24.08</div><div class="slip good">−8 дн</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе / контроль</div><div class="work-count">· 3 + 20</div></div>
+          <div class="work-list">
+            <div class="work"><div>Доставка из Китая в РФ</div><div></div><div class="pct">5%</div></div>
+            <div class="work"><div>Покраска беседок</div><div></div><div class="pct">35%</div></div>
+            <div class="work"><div>Кабель освещения, 3 этап</div><div></div><div class="pct">20%</div></div>
+            <div class="work"><div>Реставрация МАФов и динозавров</div><div></div><div class="pct">45%</div></div>
+          </div>
+        </div>
+        <div class="source">Источник: PRK-2026-DS_dashboard-data.json, автосборка 07.07.2026 13:18; бюджет план указан с учетом резерва.</div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 02</div>
+            <div class="name">Альпака — покупка</div>
+            <div class="code">PRK-2026-AZ · WBS 24.06.2026</div>
+          </div>
+          <span class="badge b-red">риск срока</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>31.07.2026</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>н/д</strong></div>
+          <div class="delta warn">риск</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:0"><strong>0%</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>9</strong><span>Задач всего</span></div>
+            <div class="task"><strong>0</strong><span>Выполнено</span></div>
+            <div class="task"><strong>1</strong><span>В работе</span></div>
+            <div class="task"><strong>8</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>2,98 млн</strong><span>Бюджет план</span></div>
+          <div class="budget-cell"><strong>0,00 млн</strong><span>Факт/прогноз</span></div>
+          <div class="budget-cell"><strong>0%</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip amber">Ф1. Договоры и согласование</span>
+            <span class="chip red">Ф2. Поставка и карантин</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot risk">●</span>Договор поставки</div><div class="date-short">20.06</div><div class="slip bad">+13 дн</div></div>
+            <div class="stage"><div><span class="dot risk">●</span>Поставка альпак</div><div class="date-short">30.06</div><div class="slip bad">+3 дн</div></div>
+            <div class="stage"><div><span class="dot">●</span>Карантин</div><div class="date-short">30.07</div><div class="slip warn">0 дн</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе</div><div class="work-count">· 1</div></div>
+          <div class="work-list">
+            <div class="work"><div>Согласование с ветслужбой</div><div></div><div class="pct">0%</div></div>
+          </div>
+        </div>
+        <div class="source">Плановая дата взята из baseline WBS; фактический прогноз не подтвержден из-за риска по поставке и карантину.</div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 03</div>
+            <div class="name">Альпака — лицензия</div>
+            <div class="code">PRK-2026-AL · КСГ 03.07.2026</div>
+          </div>
+          <span class="badge b-green">завершен</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>16.07.2026</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>01.07.2026</strong></div>
+          <div class="delta good">−15 дн</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:100"><strong>100%</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>28</strong><span>Задач всего</span></div>
+            <div class="task"><strong>28</strong><span>Выполнено</span></div>
+            <div class="task"><strong>0</strong><span>В работе</span></div>
+            <div class="task"><strong>0</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>н/д</strong><span>Бюджет план</span></div>
+          <div class="budget-cell"><strong>н/д</strong><span>Факт/прогноз</span></div>
+          <div class="budget-cell"><strong>н/д</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip">Активных фаз нет — проект завершен</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot">●</span>Договоры с подрядчиками</div><div class="date-short">08.04</div><div class="slip bad">+19 дн</div></div>
+            <div class="stage"><div><span class="dot">●</span>Подтверждение получено</div><div class="date-short">29.06</div><div class="slip bad">+39 дн</div></div>
+            <div class="stage"><div><span class="dot">●</span>Лицензия получена</div><div class="date-short">01.07</div><div class="slip good">−15 дн</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе</div><div class="work-count">· 0</div></div>
+          <div class="work-list"><div class="work"><div>Активных задач по КСГ нет</div><div></div><div class="pct">—</div></div></div>
+        </div>
+        <div class="source">Источник: PRK-2026-AL_KSG_Licenziya.mpp. В КСГ 28 задач, 28 закрыто.</div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 04</div>
+            <div class="name">Закажи праздник (Инфоцентр)</div>
+            <div class="code">PRK-2026-IC · КСГ факт 06.07.2026</div>
+          </div>
+          <span class="badge b-green">закрыт</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>18.06.2026</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>12.06.2026</strong></div>
+          <div class="delta good">−6 дн</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:100"><strong>100%</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>40</strong><span>Задач всего</span></div>
+            <div class="task"><strong>40</strong><span>Выполнено</span></div>
+            <div class="task"><strong>0</strong><span>В работе</span></div>
+            <div class="task"><strong>0</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>1,95 млн</strong><span>Бюджет план</span></div>
+          <div class="budget-cell good"><strong>1,34 млн</strong><span>Факт/прогноз</span></div>
+          <div class="budget-cell good"><strong>69%</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip">Активных фаз нет — проект завершен</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot done">●</span>Планировка и вывески согласованы</div><div class="date-short">08.06</div><div class="slip good">0 дн</div></div>
+            <div class="stage"><div><span class="dot done">●</span>Помещение передано в эксплуатацию</div><div class="date-short">12.06</div><div class="slip good">−6 дн</div></div>
+            <div class="stage"><div><span class="dot done">●</span>Вывески смонтированы и оплачены</div><div class="date-short">18.06</div><div class="slip good">0 дн</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе</div><div class="work-count">· 0</div></div>
+          <div class="work-list"><div class="work"><div>Активных задач нет — проект закрыт</div><div></div><div class="pct">—</div></div></div>
+        </div>
+        <div class="source">План: финиш КСГ 18.06.2026; факт запуска: передача помещения в эксплуатацию 12.06.2026.</div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 05</div>
+            <div class="name">Альпака — ремонт</div>
+            <div class="code">PRK-2026-AR · WBS без дат</div>
+          </div>
+          <span class="badge b-amber">нужен срок</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>уточнить</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>н/д</strong></div>
+          <div class="delta">—</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:0"><strong>0%</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>6</strong><span>Задач всего</span></div>
+            <div class="task"><strong>0</strong><span>Выполнено</span></div>
+            <div class="task"><strong>0</strong><span>В работе</span></div>
+            <div class="task"><strong>6</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>2,33 млн</strong><span>Бюджет план</span></div>
+          <div class="budget-cell"><strong>0,00 млн</strong><span>Факт/прогноз</span></div>
+          <div class="budget-cell"><strong>0%</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip amber">Ф1. Проектирование</span>
+            <span class="chip">Ф2. Работы силами парка</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot">●</span>Контактные секции</div><div class="date-short">—</div><div class="slip">—</div></div>
+            <div class="stage"><div><span class="dot">●</span>Замена настилов</div><div class="date-short">—</div><div class="slip">—</div></div>
+            <div class="stage"><div><span class="dot">●</span>Приемка работ</div><div class="date-short">—</div><div class="slip">—</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе</div><div class="work-count">· 0</div></div>
+          <div class="work-list"><div class="work"><div>Даты и фактический статус нужно внести в WBS</div><div></div><div class="pct">—</div></div></div>
+        </div>
+        <div class="source">Главное действие: утвердить дату запуска и датировать WBS.</div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 06</div>
+            <div class="name">Молния</div>
+            <div class="code">PRK-2026-ML · КСГ 07.07.2026</div>
+          </div>
+          <span class="badge b-amber">в работе</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>30.06.2026</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>21.07.2026</strong></div>
+          <div class="delta bad">+21 дн</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:73"><strong>73%</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>27</strong><span>Задач всего</span></div>
+            <div class="task"><strong>15</strong><span>Выполнено</span></div>
+            <div class="task"><strong>1</strong><span>В работе</span></div>
+            <div class="task"><strong>11</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>0,43 млн</strong><span>Бюджет план</span></div>
+          <div class="budget-cell good"><strong>0,28 млн</strong><span>Использовано</span></div>
+          <div class="budget-cell good"><strong>63%</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip amber">Ф2. Производственные работы 73%</span>
+            <span class="chip">Ф3. Приемка и закрытие 0%</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot">●</span>Концепция согласована</div><div class="date-short">27.05</div><div class="slip good">0 дн</div></div>
+            <div class="stage"><div><span class="dot">●</span>Художественный рисунок</div><div class="date-short">09.07</div><div class="slip bad">+26 дн</div></div>
+            <div class="stage"><div><span class="dot">●</span>Финальная приемка</div><div class="date-short">21.07</div><div class="slip bad">+21 дн</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе</div><div class="work-count">· 1</div></div>
+          <div class="work-list"><div class="work"><div>Нанесение художественного рисунка</div><div></div><div class="pct">40%</div></div></div>
+        </div>
+        <div class="source">Источник: PRK-2026-ML_Molniya_KSG_corrected.mpp. В КСГ 27 задач, 15 закрыто; бюджет 434 600 / использовано 275 600.</div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <div class="idx">Проект 07</div>
+            <div class="name">Хаски дополнение</div>
+            <div class="code">PRK-2026-HS · инициация</div>
+          </div>
+          <span class="badge b-slate">hold?</span>
+        </div>
+        <div class="dates">
+          <div class="date-box"><span>Дата запуска план</span><strong>уточнить</strong></div>
+          <div class="date-box"><span>Дата запуска факт/прогноз</span><strong>н/д</strong></div>
+          <div class="delta">—</div>
+        </div>
+        <div class="progress-row">
+          <div class="ring" style="--pct:0"><strong>н/д</strong></div>
+          <div class="task-grid">
+            <div class="task"><strong>н/д</strong><span>Задач всего</span></div>
+            <div class="task"><strong>н/д</strong><span>Выполнено</span></div>
+            <div class="task"><strong>н/д</strong><span>В работе</span></div>
+            <div class="task"><strong>н/д</strong><span>Остаток</span></div>
+          </div>
+        </div>
+        <div class="budget-row">
+          <div class="budget-cell"><strong>0,32 млн</strong><span>Бюджет план</span></div>
+          <div class="budget-cell good"><strong>0,27 млн</strong><span>Факт/прогноз</span></div>
+          <div class="budget-cell good"><strong>86%</strong><span>Исполнение</span></div>
+        </div>
+        <div>
+          <div class="section-title">Активная фаза</div>
+          <div class="chips">
+            <span class="chip amber">Инициация</span>
+            <span class="chip">Решить проект / hold</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">Ключевые этапы</div>
+          <div class="stages">
+            <div class="stage"><div><span class="dot">●</span>Цель и результат</div><div class="date-short">—</div><div class="slip">—</div></div>
+            <div class="stage"><div><span class="dot">●</span>Срок и спонсор</div><div class="date-short">—</div><div class="slip">—</div></div>
+            <div class="stage"><div><span class="dot">●</span>WBS / план запуска</div><div class="date-short">—</div><div class="slip">—</div></div>
+          </div>
+        </div>
+        <div>
+          <div class="work-head"><div class="work-title">В работе</div><div class="work-count">· н/д</div></div>
+          <div class="work-list"><div class="work"><div>Сначала нужна рамка проекта</div><div></div><div class="pct">—</div></div></div>
+        </div>
+        <div class="source">В паспорте есть смета, но нет цели, даты запуска и WBS.</div>
+      </article>
+    </section>
+
+    <footer>
+      MS Project / КСГ · WBS · Дата запуска = целевая управленческая дата. Легенда: зеленый — выполнено/раньше, синий — в работе, желтый — внимание, красный — отклонение/риск.
+    </footer>
+  </main>
+  <script>
+    const sourceCards = document.querySelector('.cards');
+    const allCards = Array.from(sourceCards.querySelectorAll('.card'));
+    const byName = new Map(allCards.map((card) => [card.querySelector('.name')?.textContent.trim(), card]));
+    const groups = [
+      {
+        title: 'Проекты в реализации',
+        meta: '2 проекта',
+        cols: 2,
+        names: ['ДиноПарк. Модернизация', 'Молния']
+      },
+      {
+        title: 'Проекты в проработке',
+        meta: '3 проекта',
+        cols: 3,
+        names: ['Альпака — покупка', 'Альпака — ремонт', 'Хаски дополнение']
+      },
+      {
+        title: 'Завершенные проекты',
+        meta: '2 проекта',
+        cols: 2,
+        names: ['Закажи праздник (Инфоцентр)', 'Альпака — лицензия']
+      }
+    ];
+
+    const grouped = document.createElement('section');
+    grouped.className = 'portfolio-groups';
+    groups.forEach((group) => {
+      const section = document.createElement('section');
+      section.className = 'project-section';
+      const title = document.createElement('div');
+      title.className = 'project-section-title';
+      title.innerHTML = `${group.title}<span>${group.meta}</span>`;
+      const row = document.createElement('div');
+      row.className = 'cards';
+      row.style.setProperty('--cols', group.cols);
+      group.names.forEach((name) => {
+        const card = byName.get(name);
+        if (card) {
+          if (group.title === 'Завершенные проекты') card.classList.add('is-complete');
+          row.appendChild(card);
+        }
+      });
+      section.append(title, row);
+      grouped.appendChild(section);
+    });
+    sourceCards.replaceWith(grouped);
+
+    const phaseBlocks = Array.from(document.querySelectorAll('.card')).map((card) => {
+      const title = Array.from(card.querySelectorAll('.section-title'))
+        .find((node) => node.textContent.trim() === 'Активная фаза');
+      const chips = title?.nextElementSibling;
+      if (!chips || !chips.classList.contains('chips')) return null;
+      const items = Array.from(chips.querySelectorAll('.chip'));
+      if (items.length === 0) return null;
+      chips.classList.add('phase-rotator');
+      items[0].classList.add('is-active');
+      return { items, index: 0 };
+    }).filter(Boolean);
+
+    window.setInterval(() => {
+      phaseBlocks.forEach((block) => {
+        if (block.items.length < 2) return;
+        block.items[block.index].classList.remove('is-active');
+        block.index = (block.index + 1) % block.items.length;
+        block.items[block.index].classList.add('is-active');
+      });
+    }, 2600);
+  </script>
+</body>
+</html>
