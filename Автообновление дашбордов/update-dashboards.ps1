@@ -119,6 +119,15 @@ function Get-DashboardStatusText([string]$Status, [int]$Pct) {
   return @{ Text='—'; Class='' }
 }
 
+function Get-SlipLabel([string]$Status, [datetime]$Finish, [datetime]$Ref) {
+  if ($Status -eq 'done') { return 'в срок' }
+  if ($Status -eq 'late') {
+    $days = [math]::Max(1, [int]([datetime]$Ref.Date - [datetime]$Finish.Date).TotalDays)
+    return "+$days дн."
+  }
+  return 'в графике'
+}
+
 function Find-Task($Tasks, [string]$Pattern) {
   @($Tasks | Where-Object { $_.nm -match $Pattern } | Sort-Object @{ Expression = { [datetime]$_.e } } | Select-Object -First 1)
 }
@@ -153,7 +162,7 @@ function Add-BigDashboardTask($PhaseMap, [string]$PhaseCode, [string]$Name, $Sta
     act_finish = $(if ($Pct -ge 100) { Format-DateShort $Finish } else { '' })
     cat = $Category
     category = $Category
-    slip = $(if ($status -eq 'late') { '+1 дн.' } elseif ($status -eq 'done') { 'в срок' } else { 'в графике' })
+    slip = (Get-SlipLabel $status $Finish $Ref)
     slipover = ($status -eq 'late')
   }
 }
@@ -246,7 +255,7 @@ try {
         pct = $pct
         budget = (Get-PhaseBudgetLabel $phaseBudgetMap $Matches[1])
         status = $status
-        slip = $(if ($status -eq 'late') { '+1 дн.' } elseif ($status -eq 'done') { 'в срок' } else { 'в графике' })
+        slip = (Get-SlipLabel $status $finish $ref)
         slipover = ($status -eq 'late')
         tasks = @()
       }
@@ -485,8 +494,6 @@ document.getElementById("glb").addEventListener("click",function(e){if(e.target=
 document.addEventListener("DOMContentLoaded",function(){GAL.forEach(function(g,i){var el=document.getElementById("pci"+i);
   if(el&&g.fls.length&&getSrc(g.fls[0])){el.src=getSrc(g.fls[0]);}});});
 </script>
-
-<div class="photo-section">
 "@
 
 $mainHtml = [System.IO.File]::ReadAllText($mainDashboardPath, [System.Text.Encoding]::UTF8)
@@ -589,15 +596,74 @@ $infoStrip = @"
       </tbody>
     </table>
   </div>
+
+  <div class="info-card" style="position:relative">
+    <div class="ic-label">🏁 Сценарии Grand Opening</div>
+    <div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;color:#16a34a;margin-bottom:4px">ПРОИЗВОДСТВО К 30.06 — УСКОРЕННЫЙ</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 6px;align-items:center">
+        <span style="font-size:10px;color:#166534">Аниматроники на площадке</span><span style="font-size:11px;font-weight:700;color:#15803d;text-align:right">07.08.2026</span>
+        <span style="font-size:10px;color:#166534">Монтаж завершён</span><span style="font-size:11px;font-weight:700;color:#15803d;text-align:right">20.08.2026</span>
+        <span style="font-size:10px;color:#166534;font-weight:700">🏁 Grand Opening</span><span style="font-size:13px;font-weight:800;color:#15803d;text-align:right">22.08.2026</span>
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:#fefce8;border:1px solid #fde68a">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;color:#92400e;margin-bottom:4px">ПЛАН КСГ — с резервами</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 6px;align-items:center">
+        <span style="font-size:10px;color:#78350f">Аниматроники на площадке</span><span style="font-size:11px;font-weight:700;color:#92400e;text-align:right">07.08.2026</span>
+        <span style="font-size:10px;color:#78350f">Монтаж завершён</span><span style="font-size:11px;font-weight:700;color:#92400e;text-align:right">20.08.2026</span>
+        <span style="font-size:10px;color:#78350f;font-weight:700">🏁 Grand Opening</span><span style="font-size:13px;font-weight:800;color:#92400e;text-align:right">24.08.2026</span>
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--gray-light);border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:10px;color:var(--gray);font-weight:700">📋 Устав (крайний срок)</span><span style="font-size:12px;font-weight:800;color:var(--text)">01.09.2026</span>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
+      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Произв. 7 р.д.</span>
+      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Доставка 3 р.д.</span>
+      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Таможня 2 р.д.</span>
+      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Монтаж 4 р.д.</span>
+    </div>
+  </div>
+
+  <div class="info-card">
+    <div class="ic-label">👥 Команда</div>
+    <div class="info-row"><span class="ir-key">PM</span><span class="ir-val">Ермолаева Ирина</span></div>
+    <div class="info-row"><span class="ir-key">ГД / Заказчик</span><span class="ir-val">Горелов Виктор</span></div>
+    <div class="info-row"><span class="ir-key">Куратор / Опер. дир.</span><span class="ir-val">Ксенофонтов Валерий</span></div>
+    <div class="info-row"><span class="ir-key">Директор PMO</span><span class="ir-val">Иванов Сергей</span></div>
+    <div class="info-row"><span class="ir-key">Директор ДЕЗ</span><span class="ir-val">Киселев Михаил</span></div>
+    <div class="info-row"><span class="ir-key">Директор Сервис А</span><span class="ir-val">Саркитов Александр</span></div>
+    <div class="info-row"><span class="ir-key">Реставратор</span><span class="ir-val">Березин</span></div>
+  </div>
 </div>
 "@
+
+$glbHtml = @"
+<div class="glb" id="glb">
+  <div class="glb-hdr">
+    <div><div class="glb-title" id="glb-title"></div><div class="glb-meta" id="glb-meta"></div></div>
+    <div style="display:flex;align-items:center;gap:10px"><span class="glb-counter" id="glb-ctr"></span><span class="glb-close" onclick="glbClose()">&#10005;</span></div>
+  </div>
+  <div class="glb-stage">
+    <div class="glb-arrow left" id="glb-prev" onclick="glbMove(-1)">&#8249;</div>
+    <div id="glb-media"></div>
+    <div class="glb-arrow right" id="glb-next" onclick="glbMove(1)">&#8250;</div>
+  </div>
+  <div class="glb-caption-bar" id="glb-caption"></div>
+  <div class="glb-strip" id="glb-strip"></div>
+</div>
+"@
+
+$infoAndPhotos = "<div style=`"padding: 0 32px 0; max-width:1600px; margin:0 auto;`">`r`n" + $infoStrip + "`r`n</div>`r`n`r`n" + $glbHtml + "`r`n" + $galleryScript + "`r`n" + $photoSection
 
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?</div><div class="lbl">До Grand Opening</div></div>', '<div class="header-kpi"><div class="val amber">' + $daysLeft + ' дней</div><div class="lbl">До Grand Opening</div></div>')
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val green">\d+%</div><div class="lbl">Прогресс проекта</div></div>', '<div class="header-kpi"><div class="val green">' + $progress + '%</div><div class="lbl">Прогресс проекта</div></div>')
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?₽</div><div class="lbl">Бюджет \(актуал\.\)</div></div>', '<div class="header-kpi"><div class="val amber">' + (Format-Rub $budgetActual) + '</div><div class="lbl">Бюджет (актуал.)</div></div>')
 $mainHtml = [regex]::Replace($mainHtml, '<span class="ob-pct">\d+%</span>', '<span class="ob-pct">' + $progress + '%</span>')
 $mainHtml = [regex]::Replace($mainHtml, 'style="width:\d+%"', 'style="width:' + $progress + '%"', 1)
-$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="info-strip">.*?</div>\s*<script>\s*const phases', $infoStrip + "`r`n<script>`r`nconst phases", 1)
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div style="padding: 0 32px 0; max-width:1600px; margin:0 auto;">\s*<div class="info-strip">.*?<script>\s*const phases', $infoAndPhotos + "`r`n<script>`r`nconst phases", 1)
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="info-strip">.*?<script>\s*const phases', $infoAndPhotos + "`r`n<script>`r`nconst phases", 1)
 $mainHtml = [regex]::Replace(
   $mainHtml,
   '(?s)<div class="photo-section">.*?</div>\s*<script>\s*const phases',
