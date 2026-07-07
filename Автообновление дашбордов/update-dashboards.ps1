@@ -33,6 +33,15 @@ function Format-Rub($Value) {
   }
 }
 
+function Format-Rub2($Value) {
+  if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return '—' }
+  try {
+    return (([double]$Value).ToString('N2', [System.Globalization.CultureInfo]::GetCultureInfo('ru-RU')).Replace(' ', [char]0x00A0) + ' ₽')
+  } catch {
+    return '—'
+  }
+}
+
 function ConvertTo-JsLiteral($Object, [int]$Depth = 20) {
   ($Object | ConvertTo-Json -Depth $Depth -Compress).Replace('<', '\u003c').Replace('>', '\u003e').Replace('&', '\u0026')
 }
@@ -81,6 +90,10 @@ function Get-PhaseBudgetLabel($BudgetMap, [string]$PhaseId) {
   return '—'
 }
 
+function Html-Escape([string]$Text) {
+  return [System.Net.WebUtility]::HtmlEncode($Text)
+}
+
 function Get-StatusClass([int]$Pct, [datetime]$Start, [datetime]$Finish, [bool]$Milestone, [datetime]$Ref) {
   if ($Pct -ge 100) { return 'done' }
   if ($Finish -lt $Ref) { return 'late' }
@@ -97,6 +110,27 @@ function Get-BadgeClass([string]$Status) {
     'wip' { 'b-blu' }
     default { 'b-gray' }
   }
+}
+
+function Get-DashboardStatusText([string]$Status, [int]$Pct) {
+  if ($Pct -ge 100 -or $Status -eq 'done') { return @{ Text='завершено'; Class='green' } }
+  if ($Status -eq 'late') { return @{ Text='просрочено'; Class='red' } }
+  if ($Pct -gt 0 -or $Status -eq 'wip') { return @{ Text='в работе'; Class='amber' } }
+  return @{ Text='—'; Class='' }
+}
+
+function Find-Task($Tasks, [string]$Pattern) {
+  @($Tasks | Where-Object { $_.nm -match $Pattern } | Sort-Object @{ Expression = { [datetime]$_.e } } | Select-Object -First 1)
+}
+
+function Get-KeyDateRow($Tasks, [string]$Label, [string]$Pattern, [datetime]$Ref) {
+  $t = Find-Task $Tasks $Pattern
+  if (-not $t) {
+    return '<tr><td style="font-size:11px;color:var(--text-2);padding:5px 0">' + (Html-Escape $Label) + '</td><td style="font-size:11px;font-weight:700;text-align:center;padding:5px 4px">—</td><td style="font-size:11px;text-align:center;color:#94a3b8;padding:5px 4px">—</td></tr>'
+  }
+  $status = Get-DashboardStatusText (Get-StatusClass $t.pct ([datetime]$t.s) ([datetime]$t.e) $t.ms $Ref) $t.pct
+  $color = if ($status.Class -eq 'green') { 'var(--green)' } elseif ($status.Class -eq 'red') { 'var(--red)' } elseif ($status.Class -eq 'amber') { '#d97706' } else { '#94a3b8' }
+  return '<tr><td style="font-size:11px;color:var(--text-2);padding:5px 0">' + (Html-Escape $Label) + '</td><td style="font-size:11px;font-weight:700;text-align:center;padding:5px 4px">' + (Format-DateRu $t.e) + '</td><td style="font-size:11px;text-align:center;color:' + $color + ';padding:5px 4px">' + $status.Text + '</td></tr>'
 }
 
 function Get-DashboardCategory([string]$Name, [bool]$Milestone, [string]$PhaseCode = '') {
@@ -475,6 +509,95 @@ foreach ($g in $photoGroups) {
 "@
 }
 $photoSection = "<div class=`"photo-section`">`r`n  <div class=`"photo-section-title`">📸 Фотофиксация хода работ</div>`r`n  <div class=`"photo-grid`">`r`n" + ($photoCards -join "`r`n") + "`r`n  </div>`r`n</div>"
+
+$budgetApproved = 14337021.37
+$budgetReserve = 1433702.14
+$budgetApprovedWithReserve = $budgetApproved + $budgetReserve
+$budgetActual = 0
+foreach ($v in $phaseBudgetMap.Values) {
+  if ($null -ne $v) { $budgetActual += [double]$v }
+}
+$budgetOverrun = $budgetActual - $budgetApproved
+$budgetReserveLeft = $budgetApprovedWithReserve - $budgetActual
+
+$vedBudget = Get-PhaseBudgetLabel $phaseBudgetMap '3'
+$vedAdvance = Find-Task $allTasks 'Внесение аванса ПИ'
+$vedProduction = Find-Task $allTasks '^Производство 12 аниматроников'
+$vedSettlement = Find-Task $allTasks 'Окончательный расч[её]т между ПИ'
+$vedDelivery = Find-Task $allTasks 'Доставка из Китая'
+$vedOnSite = Find-Task $allTasks 'Аниматроники на площадке парка'
+
+function New-VedRow($Label, $Task, [datetime]$Ref) {
+  if (-not $Task) {
+    return '<tr><td style="font-size:11px;color:var(--text-2);padding:5px 0">' + (Html-Escape $Label) + '</td><td style="font-size:11px;font-weight:700;text-align:center;padding:5px 4px">—</td><td style="font-size:11px;text-align:center;color:#94a3b8;padding:5px 4px">—</td></tr>'
+  }
+  $status = Get-DashboardStatusText (Get-StatusClass $Task.pct ([datetime]$Task.s) ([datetime]$Task.e) $Task.ms $Ref) $Task.pct
+  $color = if ($status.Class -eq 'green') { 'var(--green)' } elseif ($status.Class -eq 'red') { 'var(--red)' } elseif ($status.Class -eq 'amber') { '#d97706' } else { '#94a3b8' }
+  $fact = if ($Task.pct -ge 100) { Format-DateRu $Task.e } elseif ($Task.pct -gt 0) { $status.Text } else { '—' }
+  return '<tr><td style="font-size:11px;color:var(--text-2);padding:5px 0">' + (Html-Escape $Label) + '</td><td style="font-size:11px;font-weight:700;text-align:center;padding:5px 4px">' + (Format-DateRu $Task.e) + '</td><td style="font-size:11px;text-align:center;color:' + $color + ';padding:5px 4px">' + $fact + '</td></tr>'
+}
+
+$keyRows = @(
+  Get-KeyDateRow $allTasks 'Реставрация завершена' 'ВЕХА: реставрационные работы завершены' $ref
+  Get-KeyDateRow $allTasks 'Детские зоны' 'ВЕХА: Благоустройство детских зон завершено|Игровая зона .* принята' $ref
+  Get-KeyDateRow $allTasks 'Электромонтаж' 'ВЕХА: Освещение введено в эксплуатацию 3 этап|Электросети введены в эксплуатацию' $ref
+  Get-KeyDateRow $allTasks 'Аниматроники на площадке' 'Аниматроники на площадке парка' $ref
+  Get-KeyDateRow $allTasks 'Монтаж завершён' 'Аниматроники смонтированы и работают штатно' $ref
+  Get-KeyDateRow $allTasks '🏁 Grand Opening' 'Grand Opening|GRAND OPENING|Открытие' $ref
+) -join "`r`n        "
+
+$vedRows = @(
+  New-VedRow 'Аванс ПИ' $vedAdvance $ref
+  New-VedRow 'Производство' $vedProduction $ref
+  New-VedRow 'Окончат. расчёт' $vedSettlement $ref
+  New-VedRow 'Доставка' $vedDelivery $ref
+  New-VedRow 'На площадке' $vedOnSite $ref
+) -join "`r`n        "
+
+$infoStrip = @"
+<div class="info-strip">
+
+  <div class="info-card">
+    <div class="ic-label">💰 Финансы</div>
+    <div class="info-row"><span class="ir-key">Утвержд. бюджет</span><span class="ir-val">$(Format-Rub2 $budgetApproved)</span></div>
+    <div class="info-row"><span class="ir-key">Текущий расход</span><span class="ir-val amber">$(Format-Rub2 $budgetActual)</span></div>
+    <div class="info-row"><span class="ir-key">Отклонение</span><span class="ir-val $(if ($budgetOverrun -gt 0) { 'red' } else { 'green' })">$(if ($budgetOverrun -gt 0) { '+' } else { '' })$(Format-Rub2 $budgetOverrun)</span></div>
+    <div class="info-row"><span class="ir-key">Резерв 10%</span><span class="ir-val">$(Format-Rub2 $budgetReserve)</span></div>
+    <div class="info-row"><span class="ir-key">Утвержд. с резервом</span><span class="ir-val">$(Format-Rub2 $budgetApprovedWithReserve)</span></div>
+    <div class="info-row"><span class="ir-key">Остаток резерва</span><span class="ir-val $(if ($budgetReserveLeft -lt 0) { 'red' } else { 'green' })">$(Format-Rub2 $budgetReserveLeft)</span></div>
+  </div>
+
+  <div class="info-card">
+    <div class="ic-label">🚢 ВЭД-контур</div>
+    <div class="info-row"><span class="ir-key">Аниматроники</span><span class="ir-val">12 шт. / $vedBudget</span></div>
+    <table style="width:100%;border-collapse:collapse;margin-top:6px">
+      <colgroup><col style="width:auto"><col style="width:96px"><col style="width:96px"></colgroup>
+      <thead><tr><th style="font-size:9px;color:var(--text-2);text-align:left;padding:4px 0">Этап</th><th style="font-size:9px;color:var(--text-2);padding:4px">План</th><th style="font-size:9px;color:var(--text-2);padding:4px">Факт</th></tr></thead>
+      <tbody>
+        $vedRows
+      </tbody>
+    </table>
+  </div>
+
+  <div class="info-card">
+    <div class="ic-label">📌 Ключевые даты</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:6px">
+      <colgroup><col style="width:auto"><col style="width:90px"><col style="width:90px"></colgroup>
+      <thead><tr><th style="font-size:9px;color:var(--text-2);text-align:left;padding:4px 0">Веха</th><th style="font-size:9px;color:var(--text-2);padding:4px">План</th><th style="font-size:9px;color:var(--text-2);padding:4px">Факт</th></tr></thead>
+      <tbody>
+        $keyRows
+      </tbody>
+    </table>
+  </div>
+</div>
+"@
+
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?</div><div class="lbl">До Grand Opening</div></div>', '<div class="header-kpi"><div class="val amber">' + $daysLeft + ' дней</div><div class="lbl">До Grand Opening</div></div>')
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val green">\d+%</div><div class="lbl">Прогресс проекта</div></div>', '<div class="header-kpi"><div class="val green">' + $progress + '%</div><div class="lbl">Прогресс проекта</div></div>')
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?₽</div><div class="lbl">Бюджет \(актуал\.\)</div></div>', '<div class="header-kpi"><div class="val amber">' + (Format-Rub $budgetActual) + '</div><div class="lbl">Бюджет (актуал.)</div></div>')
+$mainHtml = [regex]::Replace($mainHtml, '<span class="ob-pct">\d+%</span>', '<span class="ob-pct">' + $progress + '%</span>')
+$mainHtml = [regex]::Replace($mainHtml, 'style="width:\d+%"', 'style="width:' + $progress + '%"', 1)
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="info-strip">.*?</div>\s*<script>\s*const phases', $infoStrip + "`r`n<script>`r`nconst phases", 1)
 $mainHtml = [regex]::Replace(
   $mainHtml,
   '(?s)<div class="photo-section">.*?</div>\s*<script>\s*const phases',
