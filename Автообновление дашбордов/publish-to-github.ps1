@@ -149,6 +149,88 @@ function Publish-LightGallery([string]$HtmlPath, [string]$JsonPath, [string]$Pro
   Write-Host "Light gallery: $converted inline photo(s), about $([math]::Round($totalBytes / 1MB, 1)) MB"
 }
 
+function Get-PmoChipClass($Phase) {
+  if ($Phase.pct -ge 80) { return 'green' }
+  if ($Phase.pct -ge 50) { return 'amber' }
+  if ($Phase.pct -gt 0) { return 'blue' }
+  return ''
+}
+
+function Format-PmoPhaseName([string]$Name) {
+  $n = $Name
+  $n = $n -replace '^Ф\.(\d+)\s+', 'Ф$1. '
+  $n = $n -replace 'Строительно-ремонтные работы', 'СМР'
+  $n = $n -replace 'Ремонт и благоустройство детских зон и беседок', 'Детские зоны'
+  return $n
+}
+
+function Update-PmoDinoSection([string]$PmoPath, [string]$JsonPath) {
+  if (-not (Test-Path -LiteralPath $PmoPath) -or -not (Test-Path -LiteralPath $JsonPath)) { return }
+
+  $html = Get-Content -LiteralPath $PmoPath -Encoding UTF8 -Raw
+  $data = Get-Content -LiteralPath $JsonPath -Encoding UTF8 -Raw | ConvertFrom-Json
+  if (-not $data.tasks -or -not $data.phases) { return }
+
+  $tasks = @($data.tasks)
+  $phases = @($data.phases)
+  $done = @($tasks | Where-Object { [int]$_.pct -ge 100 }).Count
+  $active = @($tasks | Where-Object { [int]$_.pct -gt 0 -and [int]$_.pct -lt 100 }).Count
+  $total = $tasks.Count
+  $remaining = [Math]::Max(0, $total - $done - $active)
+  $progress = 0
+  if ($data.metrics) {
+    $metric = @($data.metrics | Where-Object { $_.lbl -eq 'Прогресс проекта' } | Select-Object -First 1)
+    if ($metric -and ([string]$metric.val) -match '(\d+)') { $progress = [int]$matches[1] }
+  }
+  if ($progress -eq 0 -and $total -gt 0) {
+    $progress = [math]::Round((($tasks | Measure-Object -Property pct -Average).Average), 0)
+  }
+
+  $generated = [datetime]$data.generated_at
+  $statusDate = $generated.ToString('dd.MM.yyyy')
+  $buildText = $generated.ToString('dd.MM.yyyy HH:mm')
+  $ksgText = ([datetime]$data.ksg_updated).ToString('dd.MM.yyyy HH:mm')
+
+  $activePhases = @(
+    $phases |
+      Where-Object { [int]$_.pct -gt 0 -and [int]$_.pct -lt 100 } |
+      ForEach-Object {
+        '<span class="chip ' + (Get-PmoChipClass $_) + '">' +
+        [System.Net.WebUtility]::HtmlEncode((Format-PmoPhaseName $_.nm) + ' ' + $_.pct + '%') +
+        '</span>'
+      }
+  ) -join "`r`n            "
+
+  $workItems = @(
+    $tasks |
+      Where-Object { [int]$_.pct -gt 0 -and [int]$_.pct -lt 100 } |
+      Sort-Object @{ Expression = { [int]$_.pct } } |
+      Select-Object -First 3 |
+      ForEach-Object {
+        '<div class="work"><div>' + [System.Net.WebUtility]::HtmlEncode($_.nm) +
+        '</div><div></div><div class="pct">' + [int]$_.pct + '%</div></div>'
+      }
+  ) -join "`r`n            "
+
+  $needsCount = 0
+  if ($data.needs_action) { $needsCount = @($data.needs_action).Count }
+
+  $html = [regex]::Replace($html, 'Статус на \d{2}\.\d{2}\.\d{4}', 'Статус на ' + $statusDate, 1)
+  $html = [regex]::Replace($html, 'PRK-2026-DS · КСГ автосборка \d{2}\.\d{2}\.\d{4}', 'PRK-2026-DS · КСГ автосборка ' + $statusDate, 1)
+  $html = [regex]::Replace($html, '<div class="ring" style="--pct:\d+"><strong>\d+%</strong></div>', '<div class="ring" style="--pct:' + $progress + '"><strong>' + $progress + '%</strong></div>', 1)
+  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>Задач всего</span></div>', '<div class="task"><strong>' + $total + '</strong><span>Задач всего</span></div>', 1)
+  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>Выполнено</span></div>', '<div class="task"><strong>' + $done + '</strong><span>Выполнено</span></div>', 1)
+  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>В работе</span></div>', '<div class="task"><strong>' + $active + '</strong><span>В работе</span></div>', 1)
+  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>Остаток</span></div>', '<div class="task"><strong>' + $remaining + '</strong><span>Остаток</span></div>', 1)
+  $html = [regex]::Replace($html, '(?s)<div class="chips">\s*<span class="chip [^"]*">Ф3\..*?</div>', '<div class="chips">' + "`r`n            " + $activePhases + "`r`n          </div>", 1)
+  $html = [regex]::Replace($html, '<div class="work-count">· \d+ \+ \d+</div>', '<div class="work-count">· ' + $active + ' + ' + $needsCount + '</div>', 1)
+  $html = [regex]::Replace($html, '(?s)<div class="work-list">\s*<div class="work">.*?</div>\s*</div>', '<div class="work-list">' + "`r`n            " + $workItems + "`r`n          </div>", 1)
+  $html = [regex]::Replace($html, 'Источник: PRK-2026-DS_dashboard-data\.json, автосборка [^;]+; бюджет', 'Источник: PRK-2026-DS_dashboard-data.json, КСГ ' + $ksgText + ' · автосборка ' + $buildText + '; бюджет', 1)
+
+  [System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $PmoPath), $html, [System.Text.UTF8Encoding]::new($false))
+  Write-Host "CEO PMO dashboard synced with KSG progress: $progress% ($done/$total done)"
+}
+
 $updateScript = Join-Path $ProjectRoot 'Автообновление дашбордов\update-dashboards.ps1'
 if (-not (Test-Path -LiteralPath $updateScript)) { throw "Не найден генератор дашбордов: $updateScript" }
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git'))) { throw "Не найден GitHub-репозиторий: $RepoRoot" }
@@ -179,6 +261,7 @@ try {
   if (Test-Path -LiteralPath $repoPhotos) { Remove-Item -LiteralPath $repoPhotos -Recurse -Force }
   Remove-LargeGalleryRefs -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json')
   Publish-LightGallery -HtmlPath (Join-Path $RepoRoot 'index.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json') -ProjectRoot $ProjectRoot -RepoRoot $RepoRoot
+  Update-PmoDinoSection -PmoPath (Join-Path $RepoRoot 'pmo.html') -JsonPath (Join-Path $RepoRoot 'PRK-2026-DS_dashboard-data.json')
 
   & git add -A
   if ($LASTEXITCODE -ne 0) { throw "git add завершился с ошибкой $LASTEXITCODE" }
