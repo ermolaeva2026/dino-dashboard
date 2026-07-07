@@ -600,15 +600,7 @@ $infoStrip = @"
 
   <div class="info-card" style="position:relative">
     <div class="ic-label">🏁 Сценарии Grand Opening</div>
-    <div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0">
-      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;color:#16a34a;margin-bottom:4px">ПРОИЗВОДСТВО К 30.06 — УСКОРЕННЫЙ</div>
-      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 6px;align-items:center">
-        <span style="font-size:10px;color:#166534">Аниматроники на площадке</span><span style="font-size:11px;font-weight:700;color:#15803d;text-align:right">07.08.2026</span>
-        <span style="font-size:10px;color:#166534">Монтаж завершён</span><span style="font-size:11px;font-weight:700;color:#15803d;text-align:right">20.08.2026</span>
-        <span style="font-size:10px;color:#166534;font-weight:700">🏁 Grand Opening</span><span style="font-size:13px;font-weight:800;color:#15803d;text-align:right">22.08.2026</span>
-      </div>
-    </div>
-    <div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:#fefce8;border:1px solid #fde68a">
+    <div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#fefce8;border:1px solid #fde68a">
       <div style="font-size:9px;font-weight:700;letter-spacing:.6px;color:#92400e;margin-bottom:4px">ПЛАН КСГ — с резервами</div>
       <div style="display:grid;grid-template-columns:1fr auto;gap:2px 6px;align-items:center">
         <span style="font-size:10px;color:#78350f">Аниматроники на площадке</span><span style="font-size:11px;font-weight:700;color:#92400e;text-align:right">07.08.2026</span>
