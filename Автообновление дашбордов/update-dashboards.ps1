@@ -655,8 +655,12 @@ $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class=
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?₽</div><div class="lbl">Бюджет \(актуал\.\)</div></div>', '<div class="header-kpi"><div class="val amber">' + (Format-Rub $budgetActual) + '</div><div class="lbl">Бюджет (актуал.)</div></div>')
 $mainHtml = [regex]::Replace($mainHtml, '<span class="ob-pct">\d+%</span>', '<span class="ob-pct">' + $progress + '%</span>')
 $mainHtml = [regex]::Replace($mainHtml, 'style="width:\d+%"', 'style="width:' + $progress + '%"', 1)
-$mainHtml = [regex]::Replace($mainHtml, '(?s)<div style="padding: 0 32px 0; max-width:1600px; margin:0 auto;">\s*<div class="info-strip">.*?<script>\s*const phases', $infoAndPhotos + "`r`n<script>`r`nconst phases", 1)
-$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="info-strip">.*?<script>\s*const phases', $infoAndPhotos + "`r`n<script>`r`nconst phases", 1)
+$mainHtml = [regex]::Replace(
+  $mainHtml,
+  '(?s)(?:<div style="padding: 0 32px 0; max-width:1600px; margin:0 auto;">\s*)*<div class="info-strip">.*?<script>\s*const phases',
+  [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $infoAndPhotos + "`r`n<script>`r`nconst phases" },
+  1
+)
 $mainHtml = [regex]::Replace(
   $mainHtml,
   '(?s)<div class="photo-section">.*?</div>\s*<script>\s*const phases',
