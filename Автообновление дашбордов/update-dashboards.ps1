@@ -501,6 +501,24 @@ $mainHtml = [regex]::Replace($mainHtml, 'Обновлено:\s*\d{2}\.\d{2}\.\d{
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<script>\s*var G0=.*?</script>\s*<div class="photo-section">', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $galleryScript }, 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)const phases\s*=\s*\[.*?\];', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) 'const phases = ' + (ConvertTo-JsLiteral $bigPhases 30) + ';' }, 1)
 
+$riskCardHtml = @"
+  <div class="card risks-card">
+    <div class="card-head">
+      <h2>🔴 Критические риски</h2>
+      <span class="tag tag-red">4 из 20 активных</span>
+    </div>
+    <div class="risk-list">
+      <div class="risk-item"><div class="risk-id">R-24</div><div class="risk-body"><div class="risk-name">Перегрузка бригады ДЕЗ при параллельных фазах 5+6+7  [ORG-RES-004]</div><div class="risk-owner">Директор ДЕЗ Киселев М. / PM · Триггер: постоянно во время проведения работ</div></div><div class="risk-badge rb-crit">🔴 16</div></div>
+      <div class="risk-item"><div class="risk-id">R-10</div><div class="risk-body"><div class="risk-name">Срыв сроков шефмонтажа подрядчиком (Сервис А)  [EXT-CTR-001]</div><div class="risk-owner">Директор «Сервис А» Саркитов А. / PM · Триггер: 13.08.2026 (71 дн.)</div></div><div class="risk-badge rb-crit">🔴 15</div></div>
+      <div class="risk-item"><div class="risk-id">R-23</div><div class="risk-body"><div class="risk-name">Несчастный случай с посетителем или рабочим  [EXT-SOC-003]</div><div class="risk-owner">Директор ДЕЗ Киселев М. / Ксенофонтов В. (Куратор / Опер. директор) · Триггер: постоянно (период работ, май–авг; пик июль)</div></div><div class="risk-badge rb-crit">🔴 15</div></div>
+      <div class="risk-item"><div class="risk-id">R-01</div><div class="risk-body"><div class="risk-name">Потеря «окна» сезона (сезонность парка)  [STR-007]</div><div class="risk-owner">PM / Горелов В. (ГД) · Триггер: 13.08.2026 (71 дн.)</div></div><div class="risk-badge rb-crit">🔴 15</div></div>
+      <div style="padding:10px 14px;font-size:10px;color:var(--gray);border-top:1px solid var(--border)">Полный реестр (20 активных рисков) — документ PMO-02.07. Закрытые риски сохранены в истории реестра.</div>
+    </div>
+  </div>
+"@
+$mainHtml = [regex]::Replace($mainHtml, '(<div class="status-cell"><div class="icon">⚠️</div><div class="s-label">Риски</div><div class="s-val s-amber">).*?(</div></div>)', '$1🟡 R-24$2', 1)
+$mainHtml = [regex]::Replace($mainHtml, '(?s)\s*<div class="card risks-card">.*?</div>\s*(?=</div>\s*<div style="padding: 0 32px 0; max-width:1600px; margin:0 auto;">)', "`r`n" + $riskCardHtml, 1)
+
 $photoCards = @()
 foreach ($g in $photoGroups) {
   $photoCards += @"
