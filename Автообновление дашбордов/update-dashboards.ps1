@@ -8,6 +8,13 @@ function Join-ProjectPath([string]$Child) {
   Join-Path -Path $ProjectRoot -ChildPath $Child
 }
 
+function Convert-ProjectDate($Value) {
+  if ($null -eq $Value) { return $null }
+  $text = [string]$Value
+  if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+  if ($text -match '^(NA|НД|Н/Д|Нет|None)$') { return $null }
+  try { return [datetime]$Value } catch { return $null }
+}
 function Format-DateIso($Value) {
   if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return '' }
   try { return ([datetime]$Value).ToString('yyyy-MM-dd') } catch { return '' }
@@ -112,6 +119,29 @@ function Get-BadgeClass([string]$Status) {
   }
 }
 
+function Get-RestorationPhotoSortKey($File) {
+  $base = [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+  $num = 9999
+  $title = $base
+  $state = 9
+
+  if ($base -match '^(\d+)[_\-\s]+(.+)$') {
+    $num = [int]$Matches[1]
+    $title = $Matches[2]
+  }
+
+  if ($title -match '(?i)(?:^|[_\-\s])(после|стало|after)(?:\d+)?(?:$|[_\-\s])') {
+    $state = 0
+  }
+  elseif ($title -match '(?i)(?:^|[_\-\s])(до|было|before)(?:\d+)?(?:$|[_\-\s])') {
+    $state = 1
+  }
+
+  $cleanTitle = $title -replace '(?i)(?:^|[_\-\s])(после|стало|after|до|было|before)(?:\d+)?(?:$|[_\-\s])', ' '
+  $cleanTitle = ($cleanTitle -replace '[_\-]+', ' ').Trim()
+
+  '{0:D4}|{1}|{2:D2}|{3}' -f $num, $cleanTitle.ToLowerInvariant(), $state, $base.ToLowerInvariant()
+}
 function Get-DashboardStatusText([string]$Status, [int]$Pct) {
   if ($Pct -ge 100 -or $Status -eq 'done') { return @{ Text='завершено'; Class='green' } }
   if ($Status -eq 'late') { return @{ Text='просрочено'; Class='red' } }
@@ -225,8 +255,11 @@ try {
 
     $level = [int]$t.OutlineLevel
     $pct = [int]$t.PercentComplete
-    $start = [datetime]$t.Start
-    $finish = [datetime]$t.Finish
+    $start = Convert-ProjectDate $t.Start
+    $finish = Convert-ProjectDate $t.Finish
+    if ($null -eq $start -and $null -ne $finish) { $start = $finish }
+    if ($null -eq $finish -and $null -ne $start) { $finish = $start }
+    if ($null -eq $start -or $null -eq $finish) { continue }
     $isSummary = [bool]$t.Summary
     $isMilestone = [bool]$t.Milestone
 
@@ -385,8 +418,13 @@ if (Test-Path -LiteralPath $photoRoot) {
   $dirs = Get-ChildItem -LiteralPath $photoRoot -Directory | Sort-Object Name
   $idx = 0
   foreach ($dir in $dirs) {
-    $files = Get-ChildItem -LiteralPath $dir.FullName -File -Include *.jpg,*.jpeg,*.png,*.webp,*.mp4,*.mov -Recurse |
-      Sort-Object LastWriteTime -Descending
+    $files = Get-ChildItem -LiteralPath $dir.FullName -File -Include *.jpg,*.jpeg,*.png,*.webp,*.mp4,*.mov -Recurse
+    if ($dir.Name -eq 'Реставрация динозавров') {
+      $files = $files | Sort-Object @{ Expression = { Get-RestorationPhotoSortKey $_ } }, LastWriteTime
+    }
+    else {
+      $files = $files | Sort-Object LastWriteTime -Descending
+    }
     if (-not $files) { continue }
     $fls = @(
       foreach ($f in $files) {
@@ -693,6 +731,8 @@ Write-Host "KSG: $ksgDate"
 Write-Host "Tasks: $($allTasks.Count), done: $doneCount, progress: $progress%"
 Write-Host "Photos: $photoTotal"
 Write-Host "Data: $dataPath"
+
+
 
 
 
