@@ -215,18 +215,26 @@ function Update-PmoDinoSection([string]$PmoPath, [string]$JsonPath) {
   $needsCount = 0
   if ($data.needs_action) { $needsCount = @($data.needs_action).Count }
 
-  $html = [regex]::Replace($html, 'Статус на \d{2}\.\d{2}\.\d{4}', 'Статус на ' + $statusDate, 1)
-  $html = [regex]::Replace($html, 'PRK-2026-DS · КСГ автосборка \d{2}\.\d{2}\.\d{4}', 'PRK-2026-DS · КСГ автосборка ' + $statusDate, 1)
-  $html = [regex]::Replace($html, '<div class="ring" style="--pct:\d+"><strong>\d+%</strong></div>', '<div class="ring" style="--pct:' + $progress + '"><strong>' + $progress + '%</strong></div>', 1)
-  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>Задач всего</span></div>', '<div class="task"><strong>' + $total + '</strong><span>Задач всего</span></div>', 1)
-  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>Выполнено</span></div>', '<div class="task"><strong>' + $done + '</strong><span>Выполнено</span></div>', 1)
-  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>В работе</span></div>', '<div class="task"><strong>' + $active + '</strong><span>В работе</span></div>', 1)
-  $html = [regex]::Replace($html, '<div class="task"><strong>\d+</strong><span>Остаток</span></div>', '<div class="task"><strong>' + $remaining + '</strong><span>Остаток</span></div>', 1)
-  $html = [regex]::Replace($html, '(?s)<div class="chips">\s*<span class="chip [^"]*">Ф3\..*?</div>', '<div class="chips">' + "`r`n            " + $activePhases + "`r`n          </div>", 1)
-  $html = [regex]::Replace($html, '<div class="work-count">· \d+ \+ \d+</div>', '<div class="work-count">· ' + $active + ' + ' + $needsCount + '</div>', 1)
-  $html = [regex]::Replace($html, '(?s)<div class="work-list">\s*<div class="work">.*?</div>\s*</div>', '<div class="work-list">' + "`r`n            " + $workItems + "`r`n          </div>", 1)
-  $html = [regex]::Replace($html, 'Источник: PRK-2026-DS_dashboard-data\.json, автосборка [^;]+; бюджет', 'Источник: PRK-2026-DS_dashboard-data.json, КСГ ' + $ksgText + ' · автосборка ' + $buildText + '; бюджет', 1)
+  $cardMatch = [regex]::Match($html, '(?s)<article class="card">\s*<div class="card-head">(?:(?!</article>).)*?PRK-2026-DS(?:(?!</article>).)*?</article>')
+  if (-not $cardMatch.Success) {
+    Write-Host "CEO PMO dashboard: DinoPark card not found, pmo.html was not changed."
+    return
+  }
+  $card = $cardMatch.Value
 
+  $html = [regex]::new('Статус на \d{2}\.\d{2}\.\d{4}').Replace($html, 'Статус на ' + $statusDate, 1)
+  $card = [regex]::new('PRK-2026-DS · КСГ автосборка \d{2}\.\d{2}\.\d{4}').Replace($card, 'PRK-2026-DS · КСГ автосборка ' + $statusDate, 1)
+  $card = [regex]::new('<div class="ring" style="--pct:\d+"><strong>\d+%</strong></div>').Replace($card, '<div class="ring" style="--pct:' + $progress + '"><strong>' + $progress + '%</strong></div>', 1)
+  $card = [regex]::new('<div class="task"><strong>\d+</strong><span>Задач всего</span></div>').Replace($card, '<div class="task"><strong>' + $total + '</strong><span>Задач всего</span></div>', 1)
+  $card = [regex]::new('<div class="task"><strong>\d+</strong><span>Выполнено</span></div>').Replace($card, '<div class="task"><strong>' + $done + '</strong><span>Выполнено</span></div>', 1)
+  $card = [regex]::new('<div class="task"><strong>\d+</strong><span>В работе</span></div>').Replace($card, '<div class="task"><strong>' + $active + '</strong><span>В работе</span></div>', 1)
+  $card = [regex]::new('<div class="task"><strong>\d+</strong><span>Остаток</span></div>').Replace($card, '<div class="task"><strong>' + $remaining + '</strong><span>Остаток</span></div>', 1)
+  $card = [regex]::new('(?s)<div class="chips">\s*<span class="chip [^"]*">Ф3\..*?</div>').Replace($card, '<div class="chips">' + "`r`n            " + $activePhases + "`r`n          </div>", 1)
+  $card = [regex]::new('<div class="work-count">· \d+ \+ \d+</div>').Replace($card, '<div class="work-count">· ' + $active + ' + ' + $needsCount + '</div>', 1)
+  $card = [regex]::new('(?s)<div class="work-list">.*?</div>\s*</div>\s*<div class="source">').Replace($card, '<div class="work-list">' + "`r`n            " + $workItems + "`r`n          </div>`r`n        </div>`r`n        " + '<div class="source">', 1)
+  $card = [regex]::new('Источник: PRK-2026-DS_dashboard-data\.json, [^;]+; бюджет').Replace($card, 'Источник: PRK-2026-DS_dashboard-data.json, КСГ ' + $ksgText + ' · автосборка ' + $buildText + '; бюджет', 1)
+
+  $html = $html.Substring(0, $cardMatch.Index) + $card + $html.Substring($cardMatch.Index + $cardMatch.Length)
   [System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $PmoPath), $html, [System.Text.UTF8Encoding]::new($false))
   Write-Host "CEO PMO dashboard synced with KSG progress: $progress% ($done/$total done)"
 }
