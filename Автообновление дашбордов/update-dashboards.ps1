@@ -1,5 +1,6 @@
 ﻿param(
-  [string]$ProjectRoot = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
+  [string]$ProjectRoot = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
+  [switch]$UseExistingKsgSnapshot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,17 @@ function New-MsProjectApplication {
       [GC]::Collect()
       [GC]::WaitForPendingFinalizers()
       Start-Sleep -Seconds (2 * $attempt)
+    }
+  }
+}
+
+function Invoke-MsProjectWithRetry([scriptblock]$Action, [string]$Operation) {
+  for ($attempt = 1; $attempt -le 8; $attempt++) {
+    try { return & $Action }
+    catch {
+      $isBusy = $_.Exception.Message -match 'RPC_E_CALL_REJECTED|rejected by callee|занят|отклонен вызываемым'
+      if (-not $isBusy -or $attempt -ge 8) { throw "${Operation}: $($_.Exception.Message)" }
+      Start-Sleep -Seconds (1 + $attempt)
     }
   }
 }
@@ -90,6 +102,119 @@ function Read-XlsxCellNumber([string]$Path, [string]$SheetEntry, [string]$CellRe
   finally {
     if ($zip) { $zip.Dispose() }
     if ($stream) { $stream.Dispose() }
+  }
+}
+
+function Read-XlsxSheetRows([string]$Path, [string]$SheetEntry = 'xl/worksheets/sheet1.xml') {
+  Add-Type -AssemblyName System.IO.Compression
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zip = $null
+  $stream = $null
+  try {
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Read)
+
+    $sharedStrings = @()
+    $sharedEntry = $zip.GetEntry('xl/sharedStrings.xml')
+    if ($sharedEntry) {
+      $reader = New-Object System.IO.StreamReader($sharedEntry.Open())
+      try { $sharedText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+      $sharedXml = New-Object System.Xml.XmlDocument
+      $sharedXml.LoadXml($sharedText)
+      $sharedNs = New-Object System.Xml.XmlNamespaceManager($sharedXml.NameTable)
+      $sharedNs.AddNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
+      $sharedStrings = @(
+        $sharedXml.SelectNodes('//x:si', $sharedNs) | ForEach-Object {
+          (@($_.SelectNodes('.//x:t', $sharedNs) | ForEach-Object { $_.InnerText }) -join '')
+        }
+      )
+    }
+
+    $entry = $zip.GetEntry($SheetEntry)
+    if (-not $entry) { throw "В XLSX не найден лист: $SheetEntry" }
+    $reader = New-Object System.IO.StreamReader($entry.Open())
+    try { $sheetText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    $sheetXml = New-Object System.Xml.XmlDocument
+    $sheetXml.LoadXml($sheetText)
+    $ns = New-Object System.Xml.XmlNamespaceManager($sheetXml.NameTable)
+    $ns.AddNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
+
+    $rows = @()
+    foreach ($rowNode in $sheetXml.SelectNodes('//x:sheetData/x:row', $ns)) {
+      $cells = @{}
+      foreach ($cellNode in $rowNode.SelectNodes('x:c', $ns)) {
+        $cellRef = $cellNode.GetAttribute('r')
+        if ($cellRef -notmatch '^([A-Z]+)\d+$') { continue }
+        $column = $Matches[1]
+        $type = $cellNode.GetAttribute('t')
+        $valueNode = $cellNode.SelectSingleNode('x:v', $ns)
+        $value = if ($valueNode) { [string]$valueNode.InnerText } else { '' }
+        if ($type -eq 's' -and $value -match '^\d+$') {
+          $index = [int]$value
+          if ($index -lt $sharedStrings.Count) { $value = [string]$sharedStrings[$index] }
+        }
+        elseif ($type -eq 'inlineStr') {
+          $value = @($cellNode.SelectNodes('.//x:is//x:t', $ns) | ForEach-Object { $_.InnerText }) -join ''
+        }
+        $cells[$column] = $value
+      }
+      $rows += [pscustomobject]@{ row = [int]$rowNode.GetAttribute('r'); cells = $cells }
+    }
+    return $rows
+  }
+  finally {
+    if ($zip) { $zip.Dispose() }
+    if ($stream) { $stream.Dispose() }
+  }
+}
+
+function Get-RiskSnapshot([string]$RiskRoot) {
+  $riskFile = Get-ChildItem -LiteralPath $RiskRoot -File -Filter 'PMO-02_07_Reestr_riskov_PRK-2026-DS*.xlsx' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+  if (-not $riskFile) { throw "Не найден актуальный реестр рисков в $RiskRoot" }
+
+  $risks = @()
+  foreach ($row in (Read-XlsxSheetRows $riskFile.FullName)) {
+    $id = [string]$row.cells['A']
+    if ($id -notmatch '^R-\d+$') { continue }
+    $score = 0
+    [void][int]::TryParse([string]$row.cells['G'], [ref]$score)
+    $ownerStatus = ([string]$row.cells['N']).Trim()
+    $comment = ([string]$row.cells['P']).Trim()
+    $formalActive = $ownerStatus -notmatch '(?i)закрыт|реализован|исключ'
+    $state = if (-not $formalActive) {
+      'closed'
+    }
+    elseif ($comment -match '(?i)не реализовал|выполнен|выполнено|завершен|завершена|завершено|завершён|сдан|осуществлен|осуществлено|осуществлён') {
+      'review'
+    }
+    else {
+      'active'
+    }
+    $risks += [pscustomobject]@{
+      id = $id
+      description = ([string]$row.cells['D']).Trim()
+      score = $score
+      level = ([string]$row.cells['H']).Trim()
+      trigger = ([string]$row.cells['L']).Trim()
+      measures = ([string]$row.cells['M']).Trim()
+      owner_status = $ownerStatus
+      comment = $comment
+      formal_active = $formalActive
+      state = $state
+    }
+  }
+
+  $active = @($risks | Where-Object { $_.formal_active })
+  $critical = @($active | Where-Object { $_.score -ge 15 } | Sort-Object @{ Expression = { $_.score }; Descending = $true }, id)
+  return [pscustomobject]@{
+    source_file = $riskFile.Name
+    source_updated = $riskFile.LastWriteTime.ToString('s')
+    active_count = $active.Count
+    critical_count = $critical.Count
+    critical = $critical
+    risks = $risks
   }
 }
 
@@ -261,6 +386,7 @@ $mainDashboardPath = Join-ProjectPath 'PRK-2026-DS_Dashboard.html'
 $photoRoot = Join-ProjectPath 'Фотофиксация работ'
 $dataPath = Join-ProjectPath 'PRK-2026-DS_dashboard-data.json'
 $smetaPath = Join-ProjectPath 'Смета_Динопарк_PRK-2026-DS.xlsx'
+$riskRoot = Join-ProjectPath 'Документы PMO'
 
 if (-not (Test-Path -LiteralPath $ksgPath)) { throw "Не найден КСГ: $ksgPath" }
 if (-not (Test-Path -LiteralPath $workDashboardPath)) { throw "Не найден рабочий дашборд: $workDashboardPath" }
@@ -268,15 +394,91 @@ if (-not (Test-Path -LiteralPath $mainDashboardPath)) { throw "Не найден
 
 $ref = Get-Date
 $budget = Get-BudgetSnapshot $smetaPath
+$riskSnapshot = Get-RiskSnapshot $riskRoot
 $tasks = New-Object System.Collections.Generic.List[object]
 $phaseSummaries = New-Object System.Collections.Generic.List[object]
 $bigPhases = New-Object System.Collections.Generic.List[object]
 
-$app = New-MsProjectApplication
-$app.Visible = $false
-try {
-  $null = $app.FileOpen($ksgPath, $true)
-  $project = $app.ActiveProject
+if ($UseExistingKsgSnapshot) {
+  if (-not (Test-Path -LiteralPath $dataPath)) { throw "Не найден предыдущий снимок КСГ: $dataPath" }
+  $existingSnapshot = Get-Content -LiteralPath $dataPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  if (@($existingSnapshot.tasks).Count -eq 0 -or @($existingSnapshot.phases).Count -eq 0) {
+    throw "Предыдущий снимок КСГ не содержит фаз или задач: $dataPath"
+  }
+
+  $phaseMap = @{}
+  foreach ($phase in @($existingSnapshot.phases)) {
+    if ([string]$phase.nm -notmatch '^Ф\.(\d+)\s+(.+)$') { continue }
+    $phaseId = [string]$Matches[1]
+    $phaseTitle = [string]$Matches[2]
+    $phaseCode = 'Ф.' + $phaseId
+    $phaseStart = [datetime]::ParseExact(([string]$phase.s + '.' + $ref.Year), 'dd.MM.yyyy', [System.Globalization.CultureInfo]::InvariantCulture)
+    $phaseFinish = [datetime]::ParseExact(([string]$phase.e + '.' + $ref.Year), 'dd.MM.yyyy', [System.Globalization.CultureInfo]::InvariantCulture)
+    $phasePct = [int]$phase.pct
+    $phaseStatus = Get-StatusClass $phasePct $phaseStart $phaseFinish $false $ref
+    $phaseSummaries.Add([ordered]@{ nm = [string]$phase.nm; pct = $phasePct; s = [string]$phase.s; e = [string]$phase.e; cls = [string]$phase.cls })
+    $bigObj = [ordered]@{
+      id = $phaseId
+      name = ('ФАЗА ' + $phaseId + '. ' + $phaseTitle)
+      icon = '📌'
+      plan_start = (Format-DateRu $phaseStart)
+      plan_finish = (Format-DateRu $phaseFinish)
+      act_start = $(if ($phasePct -gt 0) { Format-DateRu $phaseStart } else { '' })
+      act_finish = $(if ($phasePct -ge 100) { Format-DateRu $phaseFinish } else { '' })
+      pct = $phasePct
+      budget = (Get-PhaseBudgetLabel $budget $phaseId)
+      status = $phaseStatus
+      slip = (Get-SlipLabel $phaseStatus $phaseFinish $ref)
+      slipover = ($phaseStatus -eq 'late')
+      tasks = @()
+    }
+    $phaseMap[$phaseCode] = $bigObj
+    $bigPhases.Add($bigObj)
+  }
+
+  foreach ($row in @($existingSnapshot.tasks)) {
+    $taskStart = [datetime]::ParseExact([string]$row.s, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+    $taskFinish = [datetime]::ParseExact([string]$row.e, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+    $taskPct = [int]$row.pct
+    $isMilestone = [bool]$row.ms
+    $taskStatus = Get-StatusClass $taskPct $taskStart $taskFinish $isMilestone $ref
+    $tasks.Add([ordered]@{
+      ph = [string]$row.ph
+      blk = [string]$row.blk
+      nm = [string]$row.nm
+      s = (Format-DateIso $taskStart)
+      e = (Format-DateIso $taskFinish)
+      pct = $taskPct
+      ms = $isMilestone
+      status = $taskStatus
+    })
+    $taskCategory = if ([string]$row.blk -match '^Закуп' -or [string]$row.nm -match '^Закуп') { 'buy' } else { Get-DashboardCategory ([string]$row.nm) $isMilestone ([string]$row.ph) }
+    Add-BigDashboardTask $phaseMap ([string]$row.ph) ([string]$row.nm) $taskStart $taskFinish $taskPct $isMilestone $ref $taskCategory
+  }
+}
+else {
+  $app = New-MsProjectApplication
+  $openedByScript = $false
+  try {
+  $project = $null
+  try {
+    $candidate = Invoke-MsProjectWithRetry { $app.ActiveProject } 'Не удалось прочитать открытый проект'
+    if ($null -ne $candidate) {
+      $candidatePath = Invoke-MsProjectWithRetry { [string]$candidate.FullName } 'Не удалось определить путь открытого проекта'
+      if ([string]::Equals([System.IO.Path]::GetFullPath($candidatePath), [System.IO.Path]::GetFullPath($ksgPath), [System.StringComparison]::OrdinalIgnoreCase)) {
+        $project = $candidate
+      }
+    }
+  }
+  catch {
+    $project = $null
+  }
+
+  if ($null -eq $project) {
+    Invoke-MsProjectWithRetry { $app.FileOpen($ksgPath, $true) } 'Не удалось открыть КСГ' | Out-Null
+    $openedByScript = $true
+    $project = Invoke-MsProjectWithRetry { $app.ActiveProject } 'Не удалось получить открытый КСГ'
+  }
   $currentPhase = $null
   $currentBlock = '—'
   $currentBlockCategory = 'work'
@@ -343,9 +545,9 @@ try {
     if (-not $currentPhase) { continue }
     if ($isSummary) { continue }
 
-    $leafCategory = Get-DashboardCategory $name $isMilestone $currentPhase
-    if ($level -ge 4 -and -not $isMilestone -and ($name -match '^Закуп' -or $currentBlock -match '^Закуп')) {
-      Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref 'buy'
+    $leafCategory = if ($name -match '^Закуп' -or $currentBlock -match '^Закуп') { 'buy' } else { Get-DashboardCategory $name $isMilestone $currentPhase }
+    if ($level -ge 3) {
+      Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $leafCategory
     }
 
     $taskStatus = Get-StatusClass $pct $start $finish $isMilestone $ref
@@ -362,9 +564,12 @@ try {
   }
 }
 finally {
-  try { $app.FileClose(0) | Out-Null } catch {}
-  try { $app.Quit() | Out-Null } catch {}
+  if ($openedByScript) {
+    try { $app.FileClose(0) | Out-Null } catch {}
+    try { $app.Quit() | Out-Null } catch {}
+  }
   [System.Runtime.InteropServices.Marshal]::ReleaseComObject($app) | Out-Null
+}
 }
 
 $allTasks = @($tasks.ToArray() | ForEach-Object { [pscustomobject]$_ })
@@ -506,6 +711,14 @@ $payload = [ordered]@{
   photos = $photoGroups
   metrics = $metrics
   alerts = $alerts
+  risk_register = [ordered]@{
+    source_file = $riskSnapshot.source_file
+    source_updated = $riskSnapshot.source_updated
+    active_count = $riskSnapshot.active_count
+    critical_count = $riskSnapshot.critical_count
+    critical = $riskSnapshot.critical
+    risks = $riskSnapshot.risks
+  }
   budget = [ordered]@{
     updated_at = $budget.updated_at
     planned = $budget.planned
@@ -587,22 +800,44 @@ $mainHtml = [regex]::Replace($mainHtml, 'Обновлено:\s*\d{2}\.\d{2}\.\d{
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<script>\s*var G0=.*?</script>\s*<div class="photo-section">', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $galleryScript }, 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)const phases\s*=\s*\[.*?\];', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) 'const phases = ' + (ConvertTo-JsLiteral $bigPhases 30) + ';' }, 1)
 
+$riskItemsHtml = @(
+  foreach ($risk in @($riskSnapshot.critical)) {
+    $ownerLine = $risk.owner_status
+    if ($risk.trigger) { $ownerLine += ' · Триггер: ' + $risk.trigger }
+    $commentText = if ($risk.comment) { $risk.comment } else { 'не заполнен' }
+    $commentColor = if ($risk.state -eq 'review') { '#b45309' } elseif ($risk.comment) { '#15803d' } else { '#64748b' }
+    $commentLabel = if ($risk.state -eq 'review') { 'Комментарий, статус требует финализации' } else { 'Комментарий' }
+    '      <div class="risk-item"><div class="risk-id">' + (Html-Escape $risk.id) + '</div><div class="risk-body"><div class="risk-name">' + (Html-Escape $risk.description) + '</div><div class="risk-owner">' + (Html-Escape $ownerLine) + '</div><div style="font-size:10px;line-height:1.35;margin-top:4px;color:' + $commentColor + '"><b>' + $commentLabel + ':</b> ' + (Html-Escape $commentText) + '</div></div><div class="risk-badge rb-crit">🔴 ' + $risk.score + '</div></div>'
+  }
+) -join "`r`n"
+if ([string]::IsNullOrWhiteSpace($riskItemsHtml)) {
+  $riskItemsHtml = '      <div style="padding:12px 14px;font-size:11px;color:var(--green)">Критических рисков с формальным статусом «Активный» нет.</div>'
+}
+$riskSourceUpdated = ([datetime]$riskSnapshot.source_updated).ToString('dd.MM.yyyy HH:mm')
 $riskCardHtml = @"
   <div class="card risks-card">
     <div class="card-head">
       <h2>🔴 Критические риски</h2>
-      <span class="tag tag-red">4 из 20 активных</span>
+      <span class="tag tag-red">$($riskSnapshot.critical_count) из $($riskSnapshot.active_count) формально активных</span>
     </div>
     <div class="risk-list">
-      <div class="risk-item"><div class="risk-id">R-24</div><div class="risk-body"><div class="risk-name">Перегрузка бригады ДЕЗ при параллельных фазах 5+6+7  [ORG-RES-004]</div><div class="risk-owner">Директор ДЕЗ Киселев М. / PM · Триггер: постоянно во время проведения работ</div></div><div class="risk-badge rb-crit">🔴 16</div></div>
-      <div class="risk-item"><div class="risk-id">R-10</div><div class="risk-body"><div class="risk-name">Срыв сроков шефмонтажа подрядчиком (Сервис А)  [EXT-CTR-001]</div><div class="risk-owner">Директор «Сервис А» Саркитов А. / PM · Триггер: 13.08.2026 (71 дн.)</div></div><div class="risk-badge rb-crit">🔴 15</div></div>
-      <div class="risk-item"><div class="risk-id">R-23</div><div class="risk-body"><div class="risk-name">Несчастный случай с посетителем или рабочим  [EXT-SOC-003]</div><div class="risk-owner">Директор ДЕЗ Киселев М. / Ксенофонтов В. (Куратор / Опер. директор) · Триггер: постоянно (период работ, май–авг; пик июль)</div></div><div class="risk-badge rb-crit">🔴 15</div></div>
-      <div class="risk-item"><div class="risk-id">R-01</div><div class="risk-body"><div class="risk-name">Потеря «окна» сезона (сезонность парка)  [STR-007]</div><div class="risk-owner">PM / Горелов В. (ГД) · Триггер: 13.08.2026 (71 дн.)</div></div><div class="risk-badge rb-crit">🔴 15</div></div>
-      <div style="padding:10px 14px;font-size:10px;color:var(--gray);border-top:1px solid var(--border)">Полный реестр (20 активных рисков) — документ PMO-02.07. Закрытые риски сохранены в истории реестра.</div>
+${riskItemsHtml}
+      <div style="padding:10px 14px;font-size:10px;color:var(--gray);border-top:1px solid var(--border)">Источник: $([System.Net.WebUtility]::HtmlEncode($riskSnapshot.source_file)) от $riskSourceUpdated. Формальный статус взят из колонки N, комментарий — из колонки P.</div>
     </div>
   </div>
 "@
-$mainHtml = [regex]::Replace($mainHtml, '(<div class="status-cell"><div class="icon">⚠️</div><div class="s-label">Риски</div><div class="s-val s-amber">).*?(</div></div>)', '$1🟡 R-24$2', 1)
+$mainHtml = [regex]::Replace(
+  $mainHtml,
+  '(<div class="header-kpi"><div class="val red">)\d+(</div><div class="lbl">Критич\. рисков)',
+  [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + $riskSnapshot.critical_count + $m.Groups[2].Value },
+  1
+)
+$mainHtml = [regex]::Replace(
+  $mainHtml,
+  '(?s)(<div class="status-cell"><div class="icon">⚠️</div><div class="s-label">Риски</div>)<div class="s-val [^"]*">.*?</div></div>',
+  [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + '<div class="s-val ' + $(if ($riskSnapshot.critical_count -gt 0) { 's-amber' } else { 's-green' }) + '">' + $(if ($riskSnapshot.critical_count -gt 0) { '🟡 ' + $riskSnapshot.critical_count + ' крит.' } else { '🟢 OK' }) + '</div></div>' },
+  1
+)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)\s*<div class="card risks-card">.*?</div>\s*(?=</div>\s*<div style="padding: 0 32px 0; max-width:1600px; margin:0 auto;">)', "`r`n" + $riskCardHtml, 1)
 
 $photoCards = @()

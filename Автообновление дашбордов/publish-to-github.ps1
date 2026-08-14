@@ -1,6 +1,7 @@
 ﻿param(
   [string]$ProjectRoot = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)),
-  [string]$RepoRoot = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))) 'Codex\dino-dashboard')
+  [string]$RepoRoot = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))) 'Codex\dino-dashboard'),
+  [switch]$UseExistingKsgSnapshot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -280,7 +281,12 @@ if (-not (Test-Path -LiteralPath $updateScript)) { throw "Не найден ге
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git'))) { throw "Не найден GitHub-репозиторий: $RepoRoot" }
 
 Write-Host "Update local dashboards..."
-& powershell -NoProfile -ExecutionPolicy Bypass -File $updateScript
+if ($UseExistingKsgSnapshot) {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $updateScript -UseExistingKsgSnapshot
+}
+else {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $updateScript
+}
 if ($LASTEXITCODE -ne 0) { throw "Локальное обновление дашбордов завершилось с ошибкой $LASTEXITCODE" }
 
 $workspaceRoot = Split-Path -Parent $ProjectRoot
