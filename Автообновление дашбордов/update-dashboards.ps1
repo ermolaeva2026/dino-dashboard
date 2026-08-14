@@ -546,9 +546,7 @@ else {
     if ($isSummary) { continue }
 
     $leafCategory = if ($name -match '^Закуп' -or $currentBlock -match '^Закуп') { 'buy' } else { Get-DashboardCategory $name $isMilestone $currentPhase }
-    if ($level -ge 3) {
-      Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $leafCategory
-    }
+    Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $leafCategory
 
     $taskStatus = Get-StatusClass $pct $start $finish $isMilestone $ref
     $tasks.Add([ordered]@{
