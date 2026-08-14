@@ -8,6 +8,18 @@ function Join-ProjectPath([string]$Child) {
   Join-Path -Path $ProjectRoot -ChildPath $Child
 }
 
+function New-MsProjectApplication {
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try { return New-Object -ComObject MSProject.Application }
+    catch {
+      if ($attempt -ge 3) { throw }
+      [GC]::Collect()
+      [GC]::WaitForPendingFinalizers()
+      Start-Sleep -Seconds (2 * $attempt)
+    }
+  }
+}
+
 function Convert-ProjectDate($Value) {
   if ($null -eq $Value) { return $null }
   $text = [string]$Value
@@ -81,19 +93,41 @@ function Read-XlsxCellNumber([string]$Path, [string]$SheetEntry, [string]$CellRe
   }
 }
 
-function Get-PhaseBudgetMap([string]$SmetaPath) {
-  $map = @{}
-  if (-not (Test-Path -LiteralPath $SmetaPath)) { return $map }
+function Get-BudgetSnapshot([string]$SmetaPath) {
+  if (-not (Test-Path -LiteralPath $SmetaPath)) { throw "Не найдена смета: $SmetaPath" }
   $sheetEntry = 'xl/worksheets/sheet1.xml'
-  $map['3'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F16'
-  $map['4'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F7'
-  $map['5'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F21'
-  $map['6'] = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F12'
-  return $map
+  $snapshot = [pscustomobject]@{
+    updated_at = (Get-Item -LiteralPath $SmetaPath).LastWriteTime.ToString('s')
+    planned = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E25'
+    approved = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E26'
+    reserve = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E27'
+    approved_with_reserve = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E28'
+    remaining_approved = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E29'
+    remaining_with_reserve = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E30'
+    confirmed = Read-XlsxCellNumber $SmetaPath $sheetEntry 'D22'
+    paid = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E22'
+    outstanding = Read-XlsxCellNumber $SmetaPath $sheetEntry 'F22'
+    phase_confirmed = @{
+      '3' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'D16'
+      '4' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'D7'
+      '5' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'D21'
+      '6' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'D12'
+    }
+    phase_paid = @{
+      '3' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E16'
+      '4' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E7'
+      '5' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E21'
+      '6' = Read-XlsxCellNumber $SmetaPath $sheetEntry 'E12'
+    }
+  }
+  foreach ($name in @('planned','approved','reserve','approved_with_reserve','remaining_approved','remaining_with_reserve','confirmed','paid','outstanding')) {
+    if ($null -eq $snapshot.$name) { throw "В первой вкладке сметы не рассчитан показатель: $name" }
+  }
+  return $snapshot
 }
 
-function Get-PhaseBudgetLabel($BudgetMap, [string]$PhaseId) {
-  if ($BudgetMap.ContainsKey($PhaseId)) { return Format-Rub $BudgetMap[$PhaseId] }
+function Get-PhaseBudgetLabel($Budget, [string]$PhaseId) {
+  if ($Budget.phase_confirmed.ContainsKey($PhaseId)) { return Format-Rub $Budget.phase_confirmed[$PhaseId] }
   return '—'
 }
 
@@ -233,12 +267,12 @@ if (-not (Test-Path -LiteralPath $workDashboardPath)) { throw "Не найден
 if (-not (Test-Path -LiteralPath $mainDashboardPath)) { throw "Не найден основной дашборд: $mainDashboardPath" }
 
 $ref = Get-Date
-$phaseBudgetMap = Get-PhaseBudgetMap $smetaPath
+$budget = Get-BudgetSnapshot $smetaPath
 $tasks = New-Object System.Collections.Generic.List[object]
 $phaseSummaries = New-Object System.Collections.Generic.List[object]
 $bigPhases = New-Object System.Collections.Generic.List[object]
 
-$app = New-Object -ComObject MSProject.Application
+$app = New-MsProjectApplication
 $app.Visible = $false
 try {
   $null = $app.FileOpen($ksgPath, $true)
@@ -286,7 +320,7 @@ try {
         act_start = $(if ($pct -gt 0) { Format-DateRu $start } else { '' })
         act_finish = $(if ($pct -ge 100) { Format-DateRu $finish } else { '' })
         pct = $pct
-        budget = (Get-PhaseBudgetLabel $phaseBudgetMap $Matches[1])
+        budget = (Get-PhaseBudgetLabel $budget $Matches[1])
         status = $status
         slip = (Get-SlipLabel $status $finish $ref)
         slipover = ($status -eq 'late')
@@ -472,6 +506,20 @@ $payload = [ordered]@{
   photos = $photoGroups
   metrics = $metrics
   alerts = $alerts
+  budget = [ordered]@{
+    updated_at = $budget.updated_at
+    planned = $budget.planned
+    approved = $budget.approved
+    reserve = $budget.reserve
+    approved_with_reserve = $budget.approved_with_reserve
+    confirmed = $budget.confirmed
+    paid = $budget.paid
+    outstanding = $budget.outstanding
+    remaining_approved = $budget.remaining_approved
+    remaining_with_reserve = $budget.remaining_with_reserve
+    phase_confirmed = $budget.phase_confirmed
+    phase_paid = $budget.phase_paid
+  }
 }
 [System.IO.File]::WriteAllText($dataPath, (ConvertTo-JsLiteral $payload 30), [System.Text.UTF8Encoding]::new($false))
 
@@ -574,17 +622,24 @@ foreach ($g in $photoGroups) {
 }
 $photoSection = "<div class=`"photo-section`">`r`n  <div class=`"photo-section-title`">📸 Фотофиксация хода работ</div>`r`n  <div class=`"photo-grid`">`r`n" + ($photoCards -join "`r`n") + "`r`n  </div>`r`n</div>"
 
-$budgetApproved = 14337021.37
-$budgetReserve = 1433702.14
-$budgetApprovedWithReserve = $budgetApproved + $budgetReserve
-$budgetActual = 0
-foreach ($v in $phaseBudgetMap.Values) {
-  if ($null -ne $v) { $budgetActual += [double]$v }
+$budgetPlanned = [double]$budget.planned
+$budgetApproved = [double]$budget.approved
+$budgetReserve = [double]$budget.reserve
+$budgetApprovedWithReserve = [double]$budget.approved_with_reserve
+$budgetConfirmed = [double]$budget.confirmed
+$budgetPaid = [double]$budget.paid
+$budgetOutstanding = [double]$budget.outstanding
+$budgetRemainingApproved = [double]$budget.remaining_approved
+$budgetRemainingWithReserve = [double]$budget.remaining_with_reserve
+if ($budgetRemainingApproved -ge 0) {
+  $budgetStatusClass = 's-green'; $budgetStatusText = '🟢 В лимите'
+} elseif ($budgetRemainingWithReserve -ge 0) {
+  $budgetStatusClass = 's-amber'; $budgetStatusText = '🟡 Резерв'
+} else {
+  $budgetStatusClass = 's-red'; $budgetStatusText = '🔴 Перерасход'
 }
-$budgetOverrun = $budgetActual - $budgetApproved
-$budgetReserveLeft = $budgetApprovedWithReserve - $budgetActual
 
-$vedBudget = Get-PhaseBudgetLabel $phaseBudgetMap '3'
+$vedBudget = Get-PhaseBudgetLabel $budget '3'
 $vedAdvance = Find-Task $allTasks 'Внесение аванса ПИ'
 $vedProduction = Find-Task $allTasks '^Производство 12 аниматроников'
 $vedSettlement = Find-Task $allTasks 'Окончательный расч[её]т между ПИ'
@@ -623,12 +678,14 @@ $infoStrip = @"
 
   <div class="info-card">
     <div class="ic-label">💰 Финансы</div>
+    <div class="info-row"><span class="ir-key">Плановый бюджет</span><span class="ir-val">$(Format-Rub2 $budgetPlanned)</span></div>
     <div class="info-row"><span class="ir-key">Утвержд. бюджет</span><span class="ir-val">$(Format-Rub2 $budgetApproved)</span></div>
-    <div class="info-row"><span class="ir-key">Текущий расход</span><span class="ir-val amber">$(Format-Rub2 $budgetActual)</span></div>
-    <div class="info-row"><span class="ir-key">Отклонение</span><span class="ir-val $(if ($budgetOverrun -gt 0) { 'red' } else { 'green' })">$(if ($budgetOverrun -gt 0) { '+' } else { '' })$(Format-Rub2 $budgetOverrun)</span></div>
+    <div class="info-row"><span class="ir-key">Подтверждено</span><span class="ir-val amber">$(Format-Rub2 $budgetConfirmed)</span></div>
+    <div class="info-row"><span class="ir-key">Оплачено</span><span class="ir-val green">$(Format-Rub2 $budgetPaid)</span></div>
+    <div class="info-row"><span class="ir-key">К оплате</span><span class="ir-val amber">$(Format-Rub2 $budgetOutstanding)</span></div>
     <div class="info-row"><span class="ir-key">Резерв 10%</span><span class="ir-val">$(Format-Rub2 $budgetReserve)</span></div>
-    <div class="info-row"><span class="ir-key">Утвержд. с резервом</span><span class="ir-val">$(Format-Rub2 $budgetApprovedWithReserve)</span></div>
-    <div class="info-row"><span class="ir-key">Остаток резерва</span><span class="ir-val $(if ($budgetReserveLeft -lt 0) { 'red' } else { 'green' })">$(Format-Rub2 $budgetReserveLeft)</span></div>
+    <div class="info-row"><span class="ir-key">Остаток лимита</span><span class="ir-val $(if ($budgetRemainingApproved -lt 0) { 'red' } else { 'green' })">$(Format-Rub2 $budgetRemainingApproved)</span></div>
+    <div class="info-row"><span class="ir-key">Остаток с резервом</span><span class="ir-val $(if ($budgetRemainingWithReserve -lt 0) { 'red' } else { 'green' })">$(Format-Rub2 $budgetRemainingWithReserve)</span></div>
   </div>
 
   <div class="info-card">
@@ -708,7 +765,13 @@ $infoAndPhotos = "<div style=`"padding: 0 32px 0; max-width:1600px; margin:0 aut
 
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?</div><div class="lbl">До Grand Opening</div></div>', '<div class="header-kpi"><div class="val amber">' + $daysLeft + ' дней</div><div class="lbl">До Grand Opening</div></div>')
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val green">\d+%</div><div class="lbl">Прогресс проекта</div></div>', '<div class="header-kpi"><div class="val green">' + $progress + '%</div><div class="lbl">Прогресс проекта</div></div>')
-$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?₽</div><div class="lbl">Бюджет \(актуал\.\)</div></div>', '<div class="header-kpi"><div class="val amber">' + (Format-Rub $budgetActual) + '</div><div class="lbl">Бюджет (актуал.)</div></div>')
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?₽</div><div class="lbl">(?:Бюджет \(актуал\.\)|Фактические платежи)</div></div>', '<div class="header-kpi"><div class="val amber">' + (Format-Rub $budgetPaid) + '</div><div class="lbl">Фактические платежи</div></div>')
+$mainHtml = [regex]::Replace(
+  $mainHtml,
+  '(?s)(<div class="status-cell"><div class="icon">💰</div><div class="s-label">Бюджет</div>)<div class="s-val [^"]*">.*?</div></div>',
+  [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + '<div class="s-val ' + $budgetStatusClass + '">' + $budgetStatusText + '</div></div>' },
+  1
+)
 $mainHtml = [regex]::Replace($mainHtml, '<span class="ob-pct">\d+%</span>', '<span class="ob-pct">' + $progress + '%</span>')
 $mainHtml = [regex]::Replace($mainHtml, 'style="width:\d+%"', 'style="width:' + $progress + '%"', 1)
 $mainHtml = [regex]::Replace(

@@ -5,6 +5,19 @@
 
 $ErrorActionPreference = 'Stop'
 
+try {
+  $publishMutex = New-Object System.Threading.Mutex($false, 'Global\PRK_2026_DS_DASHBOARD_PUBLISH')
+} catch {
+  $publishMutex = New-Object System.Threading.Mutex($false, 'PRK_2026_DS_DASHBOARD_PUBLISH')
+}
+$publishMutexHeld = $false
+try { $publishMutexHeld = $publishMutex.WaitOne(0) }
+catch [System.Threading.AbandonedMutexException] { $publishMutexHeld = $true }
+if (-not $publishMutexHeld) {
+  Write-Host 'Skip: another DinoPark dashboard publication is already running.'
+  exit 0
+}
+
 function Copy-ProjectFile([string]$SourceName, [string]$DestName) {
   $src = Join-Path $ProjectRoot $SourceName
   $dst = Join-Path $RepoRoot $DestName
@@ -164,6 +177,12 @@ function Format-PmoPhaseName([string]$Name) {
   return $n
 }
 
+function Format-PmoMillion($Value) {
+  if ($null -eq $Value -or [string]::IsNullOrWhiteSpace([string]$Value)) { return '—' }
+  $ru = [System.Globalization.CultureInfo]::GetCultureInfo('ru-RU')
+  return (([double]$Value / 1000000).ToString('N2', $ru) + ' млн')
+}
+
 function Update-PmoDinoSection([string]$PmoPath, [string]$JsonPath) {
   if (-not (Test-Path -LiteralPath $PmoPath) -or -not (Test-Path -LiteralPath $JsonPath)) { return }
 
@@ -215,6 +234,18 @@ function Update-PmoDinoSection([string]$PmoPath, [string]$JsonPath) {
   $needsCount = 0
   if ($data.needs_action) { $needsCount = @($data.needs_action).Count }
 
+  $budgetRow = $null
+  $budgetSource = $null
+  if ($data.budget) {
+    $budgetRow = '<div class="budget-row">' +
+      '<div class="budget-cell"><strong>' + (Format-PmoMillion $data.budget.approved_with_reserve) + '</strong><span>Лимит с резервом</span></div>' +
+      '<div class="budget-cell warn"><strong>' + (Format-PmoMillion $data.budget.confirmed) + '</strong><span>Подтверждено</span></div>' +
+      '<div class="budget-cell good"><strong>' + (Format-PmoMillion $data.budget.paid) + '</strong><span>Оплачено</span></div>' +
+      '</div>'
+    $budgetUpdated = ([datetime]$data.budget.updated_at).ToString('dd.MM.yyyy HH:mm')
+    $budgetSource = 'Источник: PRK-2026-DS_dashboard-data.json, КСГ ' + $ksgText + ' · автосборка ' + $buildText + '; бюджет: первая вкладка «Смета расходов Зерно» от ' + $budgetUpdated + '.'
+  }
+
   $cardMatch = [regex]::Match($html, '(?s)<article class="card">\s*<div class="card-head">(?:(?!</article>).)*?PRK-2026-DS(?:(?!</article>).)*?</article>')
   if (-not $cardMatch.Success) {
     Write-Host "CEO PMO dashboard: DinoPark card not found, pmo.html was not changed."
@@ -232,7 +263,12 @@ function Update-PmoDinoSection([string]$PmoPath, [string]$JsonPath) {
   $card = [regex]::new('(?s)<div class="chips">\s*<span class="chip [^"]*">Ф3\..*?</div>').Replace($card, '<div class="chips">' + "`r`n            " + $activePhases + "`r`n          </div>", 1)
   $card = [regex]::new('<div class="work-count">· \d+ \+ \d+</div>').Replace($card, '<div class="work-count">· ' + $active + ' + ' + $needsCount + '</div>', 1)
   $card = [regex]::new('(?s)<div class="work-list">.*?</div>\s*</div>\s*<div class="source">').Replace($card, '<div class="work-list">' + "`r`n            " + $workItems + "`r`n          </div>`r`n        </div>`r`n        " + '<div class="source">', 1)
-  $card = [regex]::new('Источник: PRK-2026-DS_dashboard-data\.json, [^;]+; бюджет').Replace($card, 'Источник: PRK-2026-DS_dashboard-data.json, КСГ ' + $ksgText + ' · автосборка ' + $buildText + '; бюджет', 1)
+  if ($budgetRow) {
+    $card = [regex]::new('(?s)<div class="budget-row">\s*(?:<div class="budget-cell[^"]*">.*?</div>\s*){3}</div>').Replace($card, $budgetRow, 1)
+    $card = [regex]::new('(?s)<div class="source">Источник: PRK-2026-DS_dashboard-data\.json.*?</div>').Replace($card, '<div class="source">' + [System.Net.WebUtility]::HtmlEncode($budgetSource) + '</div>', 1)
+  } else {
+    $card = [regex]::new('Источник: PRK-2026-DS_dashboard-data\.json, [^;]+; бюджет').Replace($card, 'Источник: PRK-2026-DS_dashboard-data.json, КСГ ' + $ksgText + ' · автосборка ' + $buildText + '; бюджет', 1)
+  }
 
   $html = $html.Substring(0, $cardMatch.Index) + $card + $html.Substring($cardMatch.Index + $cardMatch.Length)
   [System.IO.File]::WriteAllText((Resolve-Path -LiteralPath $PmoPath), $html, [System.Text.UTF8Encoding]::new($false))
@@ -246,6 +282,10 @@ if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.git'))) { throw "Не н
 Write-Host "Update local dashboards..."
 & powershell -NoProfile -ExecutionPolicy Bypass -File $updateScript
 if ($LASTEXITCODE -ne 0) { throw "Локальное обновление дашбордов завершилось с ошибкой $LASTEXITCODE" }
+
+$workspaceRoot = Split-Path -Parent $ProjectRoot
+$localPmoPath = Join-Path $workspaceRoot 'PMO-05_04_CEO_Project_Blocks_Dashboard.html'
+Update-PmoDinoSection -PmoPath $localPmoPath -JsonPath (Join-Path $ProjectRoot 'PRK-2026-DS_dashboard-data.json')
 
 Push-Location $RepoRoot
 try {
