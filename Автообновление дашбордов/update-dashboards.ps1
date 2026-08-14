@@ -206,13 +206,14 @@ function Get-RiskSnapshot([string]$RiskRoot) {
     }
   }
 
-  $active = @($risks | Where-Object { $_.formal_active })
+  $active = @($risks | Where-Object { $_.formal_active } | Sort-Object @{ Expression = { $_.score }; Descending = $true }, id)
   $critical = @($active | Where-Object { $_.score -ge 15 } | Sort-Object @{ Expression = { $_.score }; Descending = $true }, id)
   return [pscustomobject]@{
     source_file = $riskFile.Name
     source_updated = $riskFile.LastWriteTime.ToString('s')
     active_count = $active.Count
     critical_count = $critical.Count
+    active = $active
     critical = $critical
     risks = $risks
   }
@@ -328,7 +329,9 @@ function Get-KeyDateRow($Tasks, [string]$Label, [string]$Pattern, [datetime]$Ref
   }
   $status = Get-DashboardStatusText (Get-StatusClass $t.pct ([datetime]$t.s) ([datetime]$t.e) $t.ms $Ref) $t.pct
   $color = if ($status.Class -eq 'green') { 'var(--green)' } elseif ($status.Class -eq 'red') { 'var(--red)' } elseif ($status.Class -eq 'amber') { '#d97706' } else { '#94a3b8' }
-  return '<tr><td style="font-size:11px;color:var(--text-2);padding:5px 0">' + (Html-Escape $Label) + '</td><td style="font-size:11px;font-weight:700;text-align:center;padding:5px 4px">' + (Format-DateRu $t.e) + '</td><td style="font-size:11px;text-align:center;color:' + $color + ';padding:5px 4px">' + $status.Text + '</td></tr>'
+  $planFinish = if ($t.baseline_finish) { $t.baseline_finish } else { $t.e }
+  $factText = if ($t.pct -ge 100 -and $t.actual_finish) { Format-DateRu $t.actual_finish } else { $status.Text }
+  return '<tr><td style="font-size:11px;color:var(--text-2);padding:5px 0">' + (Html-Escape $Label) + '</td><td style="font-size:11px;font-weight:700;text-align:center;padding:5px 4px">' + (Format-DateRu $planFinish) + '</td><td style="font-size:11px;text-align:center;color:' + $color + ';padding:5px 4px">' + $factText + '</td></tr>'
 }
 
 function Get-DashboardCategory([string]$Name, [bool]$Milestone, [string]$PhaseCode = '') {
@@ -416,6 +419,7 @@ $riskSnapshot = Get-RiskSnapshot $riskRoot
 $tasks = New-Object System.Collections.Generic.List[object]
 $phaseSummaries = New-Object System.Collections.Generic.List[object]
 $bigPhases = New-Object System.Collections.Generic.List[object]
+$projectProgress = $null
 
 if ($UseExistingKsgSnapshot) {
   if (-not (Test-Path -LiteralPath $dataPath)) { throw "Не найден предыдущий снимок КСГ: $dataPath" }
@@ -424,6 +428,7 @@ if ($UseExistingKsgSnapshot) {
     throw "Предыдущий снимок КСГ не содержит фаз или задач: $dataPath"
   }
   $hasOutlineSnapshot = @($existingSnapshot.outline_phases).Count -gt 0
+  if ($null -ne $existingSnapshot.project_progress) { $projectProgress = [int]$existingSnapshot.project_progress }
 
   $phaseMap = @{}
   foreach ($phase in @($existingSnapshot.phases)) {
@@ -479,6 +484,10 @@ if ($UseExistingKsgSnapshot) {
       pct = $taskPct
       ms = $isMilestone
       status = $taskStatus
+      actual_start = [string]$row.actual_start
+      actual_finish = [string]$row.actual_finish
+      baseline_start = [string]$row.baseline_start
+      baseline_finish = [string]$row.baseline_finish
     })
     $taskCategory = if ([string]$row.blk -match '^Закуп' -or [string]$row.nm -match '^Закуп') { 'buy' } else { Get-DashboardCategory ([string]$row.nm) $isMilestone ([string]$row.ph) }
     if (-not $hasOutlineSnapshot) {
@@ -522,13 +531,24 @@ else {
 
     $level = [int]$t.OutlineLevel
     $pct = [int]$t.PercentComplete
+    $isTaskActive = $true
+    try { $isTaskActive = [bool]$t.Active } catch { $isTaskActive = $true }
     $start = Convert-ProjectDate $t.Start
     $finish = Convert-ProjectDate $t.Finish
+    $actualStart = Convert-ProjectDate $t.ActualStart
+    $actualFinish = Convert-ProjectDate $t.ActualFinish
+    $baselineStart = Convert-ProjectDate $t.BaselineStart
+    $baselineFinish = Convert-ProjectDate $t.BaselineFinish
     if ($null -eq $start -and $null -ne $finish) { $start = $finish }
     if ($null -eq $finish -and $null -ne $start) { $finish = $start }
     if ($null -eq $start -or $null -eq $finish) { continue }
     $isSummary = [bool]$t.Summary
     $isMilestone = [bool]$t.Milestone
+
+    if ($level -eq 1) {
+      $projectProgress = $pct
+      continue
+    }
 
     if ($level -eq 2 -and $name -match 'ФАЗА\s*(\d+)') {
       $currentPhase = 'Ф.' + $Matches[1]
@@ -568,6 +588,7 @@ else {
     if (-not $currentPhase) { continue }
 
     $groupStack = @($groupStack | Where-Object { [int]$_.level -lt $level })
+    if (-not $isTaskActive) { continue }
     $ancestors = @($groupStack | ForEach-Object { [string]$_.group_id })
 
     if ($isSummary) {
@@ -596,6 +617,10 @@ else {
       pct = $pct
       ms = $isMilestone
       status = $taskStatus
+      actual_start = (Format-DateIso $actualStart)
+      actual_finish = (Format-DateIso $actualFinish)
+      baseline_start = (Format-DateIso $baselineStart)
+      baseline_finish = (Format-DateIso $baselineFinish)
     })
   }
 }
@@ -611,7 +636,7 @@ finally {
 $allTasks = @($tasks.ToArray() | ForEach-Object { [pscustomobject]$_ })
 $active = @($allTasks | Where-Object { $_.pct -gt 0 -and $_.pct -lt 100 })
 $doneCount = @($allTasks | Where-Object { $_.pct -ge 100 }).Count
-$progress = if ($allTasks.Count -gt 0) { [math]::Round((($allTasks | Measure-Object -Property pct -Average).Average), 0) } else { 0 }
+$progress = if ($null -ne $projectProgress) { [int]$projectProgress } elseif ($allTasks.Count -gt 0) { [math]::Round((($allTasks | Measure-Object -Property pct -Average).Average), 0) } else { 0 }
 
 $needsAction = @(
   $allTasks |
@@ -718,12 +743,29 @@ if (Test-Path -LiteralPath $photoRoot) {
   }
 }
 
-$grand = $allTasks | Where-Object { $_.nm -match 'Grand Opening|GRAND OPENING|Открытие' } | Sort-Object @{ Expression = { [datetime]$_.e } } | Select-Object -Last 1
-$grandDate = if ($grand) { Format-DateRu $grand.e } else { '' }
-$daysLeft = if ($grand) { [math]::Floor((([datetime]$grand.e).Date - $ref.Date).TotalDays) } else { $null }
+$grand = $allTasks | Where-Object { $_.nm -match '(?i)^GRAND\s*OPENING' } | Select-Object -Last 1
+if (-not $grand) {
+  $grand = $allTasks | Where-Object { $_.nm -match '(?i)Grand\s*Opening|Открытие' } | Sort-Object @{ Expression = { [datetime]$_.e } } | Select-Object -Last 1
+}
+$grandPlanRaw = if ($grand -and $grand.baseline_finish) { [datetime]$grand.baseline_finish } elseif ($grand) { [datetime]$grand.e } else { $null }
+$grandFactRaw = if ($grand -and $grand.actual_finish) { [datetime]$grand.actual_finish } elseif ($grand -and $grand.pct -ge 100) { [datetime]$grand.e } else { $null }
+$grandPlanDate = if ($grandPlanRaw) { Format-DateRu $grandPlanRaw } else { '' }
+$grandFactDate = if ($grandFactRaw) { Format-DateRu $grandFactRaw } else { '' }
+$grandDate = if ($grandFactDate) { $grandFactDate } else { $grandPlanDate }
+$grandVarianceDays = if ($grandPlanRaw -and $grandFactRaw) { [int]($grandPlanRaw.Date - $grandFactRaw.Date).TotalDays } else { $null }
+$grandVarianceText = if ($null -eq $grandVarianceDays) {
+  'отклонение не рассчитано'
+} elseif ($grandVarianceDays -gt 0) {
+  "на $grandVarianceDays кал. дн. раньше плана"
+} elseif ($grandVarianceDays -lt 0) {
+  "на $([math]::Abs($grandVarianceDays)) кал. дн. позже плана"
+} else {
+  'в плановую дату'
+}
+$daysLeft = if ($grandFactRaw) { 0 } elseif ($grandPlanRaw) { [math]::Max(0, [math]::Floor(($grandPlanRaw.Date - $ref.Date).TotalDays)) } else { $null }
 
 $metrics = @(
-  [ordered]@{ lbl='Grand Opening'; val=$grandDate; cls=''; sub=$(if ($daysLeft -ne $null) { "осталось $daysLeft дн." } else { 'дата не найдена в КСГ' }) },
+  [ordered]@{ lbl='Grand Opening'; val=$grandDate; cls=$(if ($grandFactRaw) { 'c-grn' } else { '' }); sub=$(if ($grandFactRaw) { $grandVarianceText } elseif ($daysLeft -ne $null) { "осталось $daysLeft дн." } else { 'дата не найдена в КСГ' }) },
   [ordered]@{ lbl='Прогресс проекта'; val=("$progress%"); cls=$(if ($progress -ge 80) { 'c-grn' } elseif ($progress -ge 50) { 'c-amb' } else { 'c-red' }); sub=('КСГ · ' + $phaseSummaries.Count + ' фаз · ' + $doneCount + '/' + $allTasks.Count + ' задач закрыто') }
 )
 
@@ -739,6 +781,7 @@ $payload = [ordered]@{
   generated_at = $ref.ToString('s')
   ksg_file = (Get-Item -LiteralPath $ksgPath).Name
   ksg_updated = (Get-Item -LiteralPath $ksgPath).LastWriteTime.ToString('s')
+  project_progress = $progress
   phases = $phaseSummaries
   outline_phases = @($bigPhases.ToArray())
   tasks = $allTasks
@@ -753,6 +796,7 @@ $payload = [ordered]@{
     source_updated = $riskSnapshot.source_updated
     active_count = $riskSnapshot.active_count
     critical_count = $riskSnapshot.critical_count
+    active = $riskSnapshot.active
     critical = $riskSnapshot.critical
     risks = $riskSnapshot.risks
   }
@@ -894,31 +938,35 @@ function toggle(id){state[id]=!state[id];const btn=document.getElementById('btn-
 function toggleGroup(phaseId,groupId,event){if(event)event.stopPropagation();groupState[groupId]=!groupState[groupId];const btn=document.getElementById('groupbtn-'+groupId);if(btn)btn.classList.toggle('open',groupState[groupId]);setRows(phaseId);}
 function toggleRisks(){var m=document.getElementById('risk-more');var b=document.getElementById('risks-btn');var tr=document.getElementById('risk-toggle-row');if(!m)return;var hidden=(m.style.display==='none');m.style.display=hidden?'block':'none';if(b)b.classList.toggle('open',hidden);if(tr)tr.style.display=hidden?'none':'block';}
 function toggleDocs(){var b=document.getElementById('docs-body');var t=document.getElementById('docs-btn');if(!b)return;var h=(b.style.display==='none');b.style.display=h?'block':'none';if(t)t.classList.toggle('open',h);}
-['3','4','5','6','7'].forEach(id=>toggle(id));
+phases.filter(ph=>Number(ph.pct)<100).forEach(ph=>toggle(ph.id));
 '@
-$oldRenderEnd = "['3','4','5','6','7'].forEach(id=>toggle(id));"
+$legacyRenderEnd = "['3','4','5','6','7'].forEach(id=>toggle(id));"
+$oldRenderEnd = 'phases.filter(ph=>Number(ph.pct)<100).forEach(ph=>toggle(ph.id));'
+$mainHtml = $mainHtml.Replace($legacyRenderEnd, $oldRenderEnd)
 $renderPattern = '(?s)const statusCfg\s*=\s*\{.*?' + [regex]::Escape($oldRenderEnd)
 $mainHtml = [regex]::Replace($mainHtml, $renderPattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $outlineTableScript }, 1)
 
 $riskItemsHtml = @(
-  foreach ($risk in @($riskSnapshot.critical)) {
+  foreach ($risk in @($riskSnapshot.active)) {
     $ownerLine = $risk.owner_status
     if ($risk.trigger) { $ownerLine += ' · Триггер: ' + $risk.trigger }
     $commentText = if ($risk.comment) { $risk.comment } else { 'не заполнен' }
     $commentColor = if ($risk.state -eq 'review') { '#b45309' } elseif ($risk.comment) { '#15803d' } else { '#64748b' }
     $commentLabel = if ($risk.state -eq 'review') { 'Комментарий, статус требует финализации' } else { 'Комментарий' }
-    '      <div class="risk-item"><div class="risk-id">' + (Html-Escape $risk.id) + '</div><div class="risk-body"><div class="risk-name">' + (Html-Escape $risk.description) + '</div><div class="risk-owner">' + (Html-Escape $ownerLine) + '</div><div style="font-size:10px;line-height:1.35;margin-top:4px;color:' + $commentColor + '"><b>' + $commentLabel + ':</b> ' + (Html-Escape $commentText) + '</div></div><div class="risk-badge rb-crit">🔴 ' + $risk.score + '</div></div>'
+    $riskBadge = if ([int]$risk.score -ge 15) { '<div class="risk-badge rb-crit">🔴 ' + $risk.score + '</div>' } else { '<div class="risk-badge" style="background:var(--amber-bg);color:var(--amber)">🟡 ' + $risk.score + '</div>' }
+    '      <div class="risk-item"><div class="risk-id">' + (Html-Escape $risk.id) + '</div><div class="risk-body"><div class="risk-name">' + (Html-Escape $risk.description) + '</div><div class="risk-owner">' + (Html-Escape $ownerLine) + '</div><div style="font-size:10px;line-height:1.35;margin-top:4px;color:' + $commentColor + '"><b>' + $commentLabel + ':</b> ' + (Html-Escape $commentText) + '</div></div>' + $riskBadge + '</div>'
   }
 ) -join "`r`n"
 if ([string]::IsNullOrWhiteSpace($riskItemsHtml)) {
-  $riskItemsHtml = '      <div style="padding:12px 14px;font-size:11px;color:var(--green)">Критических рисков с формальным статусом «Активный» нет.</div>'
+  $riskItemsHtml = '      <div style="padding:12px 14px;font-size:11px;color:var(--green)">Активных рисков нет.</div>'
 }
 $riskSourceUpdated = ([datetime]$riskSnapshot.source_updated).ToString('dd.MM.yyyy HH:mm')
+$riskTagClass = if ($riskSnapshot.critical_count -gt 0) { 'tag-red' } elseif ($riskSnapshot.active_count -gt 0) { 'tag-amber' } else { 'tag-green' }
 $riskCardHtml = @"
   <div class="card risks-card">
     <div class="card-head">
-      <h2>🔴 Критические риски</h2>
-      <span class="tag tag-red">$($riskSnapshot.critical_count) из $($riskSnapshot.active_count) формально активных</span>
+      <h2>⚠️ Актуальные риски</h2>
+      <span class="tag $riskTagClass">$($riskSnapshot.active_count) активных · $($riskSnapshot.critical_count) критических</span>
     </div>
     <div class="risk-list">
 ${riskItemsHtml}
@@ -935,7 +983,7 @@ $mainHtml = [regex]::Replace(
 $mainHtml = [regex]::Replace(
   $mainHtml,
   '(?s)(<div class="status-cell"><div class="icon">⚠️</div><div class="s-label">Риски</div>)<div class="s-val [^"]*">.*?</div></div>',
-  [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + '<div class="s-val ' + $(if ($riskSnapshot.critical_count -gt 0) { 's-amber' } else { 's-green' }) + '">' + $(if ($riskSnapshot.critical_count -gt 0) { '🟡 ' + $riskSnapshot.critical_count + ' крит.' } else { '🟢 OK' }) + '</div></div>' },
+  [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + '<div class="s-val ' + $(if ($riskSnapshot.critical_count -gt 0) { 's-red' } elseif ($riskSnapshot.active_count -gt 0) { 's-amber' } else { 's-green' }) + '">' + $(if ($riskSnapshot.critical_count -gt 0) { '🔴 ' + $riskSnapshot.critical_count + ' крит.' } elseif ($riskSnapshot.active_count -gt 0) { '🟡 ' + $riskSnapshot.active_count + ' актив.' } else { '🟢 OK' }) + '</div></div>' },
   1
 )
 $mainHtml = [regex]::Replace($mainHtml, '(?s)\s*<div class="card risks-card">.*?</div>\s*(?=</div>\s*<div style="padding: 0 32px 0; max-width:1600px; margin:0 auto;">)', "`r`n" + $riskCardHtml, 1)
@@ -1047,23 +1095,14 @@ $infoStrip = @"
   </div>
 
   <div class="info-card" style="position:relative">
-    <div class="ic-label">🏁 Сценарии Grand Opening</div>
-    <div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:#fefce8;border:1px solid #fde68a">
-      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;color:#92400e;margin-bottom:4px">ПЛАН КСГ — с резервами</div>
-      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 6px;align-items:center">
-        <span style="font-size:10px;color:#78350f">Аниматроники на площадке</span><span style="font-size:11px;font-weight:700;color:#92400e;text-align:right">07.08.2026</span>
-        <span style="font-size:10px;color:#78350f">Монтаж завершён</span><span style="font-size:11px;font-weight:700;color:#92400e;text-align:right">20.08.2026</span>
-        <span style="font-size:10px;color:#78350f;font-weight:700">🏁 Grand Opening</span><span style="font-size:13px;font-weight:800;color:#92400e;text-align:right">24.08.2026</span>
+    <div class="ic-label">🏁 Результаты Grand Opening</div>
+    <div style="margin-top:10px;padding:9px 10px;border-radius:8px;background:var(--green-bg);border:1px solid #a7f3d0">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.6px;color:#047857;margin-bottom:5px">GRAND OPENING СОСТОЯЛСЯ</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:5px 8px;align-items:center">
+        <span style="font-size:10px;color:#065f46">План КСГ</span><span style="font-size:11px;font-weight:700;color:#065f46;text-align:right">$grandPlanDate</span>
+        <span style="font-size:10px;color:#065f46;font-weight:700">Факт Grand Opening</span><span style="font-size:13px;font-weight:800;color:#047857;text-align:right">$grandFactDate</span>
+        <span style="font-size:10px;color:#065f46">Результат по сроку</span><span style="font-size:11px;font-weight:800;color:#047857;text-align:right">$grandVarianceText</span>
       </div>
-    </div>
-    <div style="margin-top:8px;padding:6px 10px;border-radius:8px;background:var(--gray-light);border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:10px;color:var(--gray);font-weight:700">📋 Устав (крайний срок)</span><span style="font-size:12px;font-weight:800;color:var(--text)">01.09.2026</span>
-    </div>
-    <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
-      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Произв. 7 р.д.</span>
-      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Доставка 3 р.д.</span>
-      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Таможня 2 р.д.</span>
-      <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:#e0f2fe;color:#0369a1;font-weight:600">📦 Монтаж 4 р.д.</span>
     </div>
   </div>
 
@@ -1098,7 +1137,11 @@ $glbHtml = @"
 
 $infoAndPhotos = "<div style=`"padding: 0 32px 0; max-width:1600px; margin:0 auto;`">`r`n" + $infoStrip + "`r`n</div>`r`n`r`n" + $glbHtml + "`r`n" + $galleryScript + "`r`n" + $photoSection
 
-$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?</div><div class="lbl">До Grand Opening</div></div>', '<div class="header-kpi"><div class="val amber">' + $daysLeft + ' дней</div><div class="lbl">До Grand Opening</div></div>')
+$grandHeaderClass = if ($grandFactRaw) { 'green' } else { 'amber' }
+$grandHeaderValue = if ($grandFactRaw) { $grandFactDate } elseif ($null -ne $daysLeft) { "$daysLeft дней" } else { '—' }
+$grandHeaderLabel = if ($grandFactRaw) { 'Grand Opening · факт' } else { 'До Grand Opening' }
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val (?:amber|green)">.*?</div><div class="lbl">(?:До Grand Opening|Grand Opening · факт)</div></div>', '<div class="header-kpi"><div class="val ' + $grandHeaderClass + '">' + $grandHeaderValue + '</div><div class="lbl">' + $grandHeaderLabel + '</div></div>')
+$mainHtml = [regex]::Replace($mainHtml, '(\d+\s+ФАЗ\s*·\s*)\d{2}\.\d{2}\.\d{4}\s+GRAND OPENING(?:\s*·\s*ФАКТ)?', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + $grandDate + ' GRAND OPENING' + $(if ($grandFactRaw) { ' · ФАКТ' } else { '' }) }, 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val green">\d+%</div><div class="lbl">Прогресс проекта</div></div>', '<div class="header-kpi"><div class="val green">' + $progress + '%</div><div class="lbl">Прогресс проекта</div></div>')
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="header-kpi"><div class="val amber">.*?₽</div><div class="lbl">(?:Бюджет \(актуал\.\)|Фактические платежи)</div></div>', '<div class="header-kpi"><div class="val amber">' + (Format-Rub $budgetPaid) + '</div><div class="lbl">Фактические платежи</div></div>')
 $mainHtml = [regex]::Replace(
