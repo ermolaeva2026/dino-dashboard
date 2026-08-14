@@ -338,7 +338,21 @@ function Get-DashboardCategory([string]$Name, [bool]$Milestone, [string]$PhaseCo
   return 'work'
 }
 
-function Add-BigDashboardTask($PhaseMap, [string]$PhaseCode, [string]$Name, $Start, $Finish, [int]$Pct, [bool]$Milestone, [datetime]$Ref, [string]$Category) {
+function Add-BigDashboardTask(
+  $PhaseMap,
+  [string]$PhaseCode,
+  [string]$Name,
+  $Start,
+  $Finish,
+  [int]$Pct,
+  [bool]$Milestone,
+  [datetime]$Ref,
+  [string]$Category,
+  [string]$Kind = 'task',
+  [int]$Level = 3,
+  [string]$GroupId = '',
+  [string[]]$Ancestors = @()
+) {
   if (-not $PhaseCode -or -not $PhaseMap.ContainsKey($PhaseCode)) { return }
   $status = Get-StatusClass $Pct $Start $Finish $Milestone $Ref
   $PhaseMap[$PhaseCode].tasks += [ordered]@{
@@ -351,6 +365,10 @@ function Add-BigDashboardTask($PhaseMap, [string]$PhaseCode, [string]$Name, $Sta
     act_finish = $(if ($Pct -ge 100) { Format-DateShort $Finish } else { '' })
     cat = $Category
     category = $Category
+    kind = $Kind
+    level = $Level
+    group_id = $GroupId
+    ancestors = @($Ancestors)
     slip = (Get-SlipLabel $status $Finish $Ref)
     slipover = ($status -eq 'late')
   }
@@ -405,6 +423,7 @@ if ($UseExistingKsgSnapshot) {
   if (@($existingSnapshot.tasks).Count -eq 0 -or @($existingSnapshot.phases).Count -eq 0) {
     throw "Предыдущий снимок КСГ не содержит фаз или задач: $dataPath"
   }
+  $hasOutlineSnapshot = @($existingSnapshot.outline_phases).Count -gt 0
 
   $phaseMap = @{}
   foreach ($phase in @($existingSnapshot.phases)) {
@@ -436,6 +455,15 @@ if ($UseExistingKsgSnapshot) {
     $bigPhases.Add($bigObj)
   }
 
+  if ($hasOutlineSnapshot) {
+    foreach ($savedPhase in @($existingSnapshot.outline_phases)) {
+      $savedCode = 'Ф.' + [string]$savedPhase.id
+      if ($phaseMap.ContainsKey($savedCode)) {
+        $phaseMap[$savedCode].tasks = @($savedPhase.tasks)
+      }
+    }
+  }
+
   foreach ($row in @($existingSnapshot.tasks)) {
     $taskStart = [datetime]::ParseExact([string]$row.s, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
     $taskFinish = [datetime]::ParseExact([string]$row.e, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
@@ -453,7 +481,9 @@ if ($UseExistingKsgSnapshot) {
       status = $taskStatus
     })
     $taskCategory = if ([string]$row.blk -match '^Закуп' -or [string]$row.nm -match '^Закуп') { 'buy' } else { Get-DashboardCategory ([string]$row.nm) $isMilestone ([string]$row.ph) }
-    Add-BigDashboardTask $phaseMap ([string]$row.ph) ([string]$row.nm) $taskStart $taskFinish $taskPct $isMilestone $ref $taskCategory
+    if (-not $hasOutlineSnapshot) {
+      Add-BigDashboardTask $phaseMap ([string]$row.ph) ([string]$row.nm) $taskStart $taskFinish $taskPct $isMilestone $ref $taskCategory
+    }
   }
 }
 else {
@@ -483,6 +513,7 @@ else {
   $currentBlock = '—'
   $currentBlockCategory = 'work'
   $phaseMap = @{}
+  $groupStack = @()
 
   foreach ($t in $project.Tasks) {
     if ($null -eq $t) { continue }
@@ -503,6 +534,7 @@ else {
       $currentPhase = 'Ф.' + $Matches[1]
       $currentBlock = '—'
       $currentBlockCategory = 'work'
+      $groupStack = @()
       $status = Get-StatusClass $pct $start $finish $false $ref
       $phaseObj = [ordered]@{
         nm = ($currentPhase + ' ' + ($name -replace '^ФАЗА\s*\d+\.\s*', ''))
@@ -533,20 +565,26 @@ else {
       continue
     }
 
-    if ($level -eq 3 -and $isSummary) {
-      $currentBlock = $name
-      $currentBlockCategory = Get-DashboardCategory $name $isMilestone $currentPhase
-      if ($currentPhase -and $phaseMap.ContainsKey($currentPhase)) {
-        Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $currentBlockCategory
+    if (-not $currentPhase) { continue }
+
+    $groupStack = @($groupStack | Where-Object { [int]$_.level -lt $level })
+    $ancestors = @($groupStack | ForEach-Object { [string]$_.group_id })
+
+    if ($isSummary) {
+      if ($level -eq 3) {
+        $currentBlock = $name
+        $currentBlockCategory = Get-DashboardCategory $name $isMilestone $currentPhase
       }
+      $taskUid = try { [string]$t.UniqueID } catch { [string]$t.ID }
+      $groupId = ('p' + ($currentPhase -replace '\D', '') + '-g' + $taskUid)
+      $groupCategory = Get-DashboardCategory $name $isMilestone $currentPhase
+      Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $groupCategory 'group' $level $groupId $ancestors
+      $groupStack += [pscustomobject]@{ level = $level; group_id = $groupId }
       continue
     }
 
-    if (-not $currentPhase) { continue }
-    if ($isSummary) { continue }
-
     $leafCategory = if ($name -match '^Закуп' -or $currentBlock -match '^Закуп') { 'buy' } else { Get-DashboardCategory $name $isMilestone $currentPhase }
-    Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $leafCategory
+    Add-BigDashboardTask $phaseMap $currentPhase $name $start $finish $pct $isMilestone $ref $leafCategory 'task' $level '' $ancestors
 
     $taskStatus = Get-StatusClass $pct $start $finish $isMilestone $ref
     $tasks.Add([ordered]@{
@@ -702,6 +740,7 @@ $payload = [ordered]@{
   ksg_file = (Get-Item -LiteralPath $ksgPath).Name
   ksg_updated = (Get-Item -LiteralPath $ksgPath).LastWriteTime.ToString('s')
   phases = $phaseSummaries
+  outline_phases = @($bigPhases.ToArray())
   tasks = $allTasks
   needs_action = $needsAction
   critical = $crit
@@ -797,6 +836,69 @@ $mainHtml = [System.IO.File]::ReadAllText($mainDashboardPath, [System.Text.Encod
 $mainHtml = [regex]::Replace($mainHtml, 'Обновлено:\s*\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}', 'Обновлено: ' + $stamp)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<script>\s*var G0=.*?</script>\s*<div class="photo-section">', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $galleryScript }, 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)const phases\s*=\s*\[.*?\];', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) 'const phases = ' + (ConvertTo-JsLiteral $bigPhases 30) + ';' }, 1)
+
+$outlineTableScript = @'
+const statusCfg = {
+  'done':{badge:'badge-done',label:'✅ Завершено'},'wip':{badge:'badge-wip',label:'🔄 В работе'},
+  'wip-crit':{badge:'badge-crit',label:'🔄 ВЭД Активно'},'open':{badge:'badge-open',label:'⬜ Не начато'},
+  'milestone':{badge:'badge-milestone',label:'🏁 Веха'},
+};
+function statusView(status,pct){
+  if(status==='late')return pct>0?{badge:'badge-wip',label:'🔄 В работе'}:{badge:'badge-open',label:'⬜ Не начато'};
+  return statusCfg[status]||statusCfg.open;
+}
+function barColor(pct,status){if(status==='done')return 'fill-green';if(status==='wip-crit')return 'fill-red';if(pct>0)return 'fill-amber';return 'fill-blue';}
+function actualHtml(t){return t.act_start?(t.act_finish?'<span class="act-done">'+t.act_start+' → '+t.act_finish+'</span>':'<span class="act-wip">'+t.act_start+' → <i>идёт</i></span>'):'<span class="act-none">—</span>';}
+function slipHtml(t){return t.slipover?'<span style="color:var(--red);font-weight:700">'+t.slip+'</span>':'<span style="color:var(--gray)">'+t.slip+'</span>';}
+const tbody=document.getElementById('phases-tbody');let state={},groupState={};
+phases.forEach(ph=>{
+  state[ph.id]=false;
+  ph.tasks.forEach(t=>{if(t.kind==='group'&&t.group_id)groupState[t.group_id]=true;});
+  const cfg=statusView(ph.status,ph.pct),bc=barColor(ph.pct,ph.status);
+  const phRow=document.createElement('tr');phRow.className='phase-row';
+  phRow.innerHTML=`<td class="ph-name"><div class="name-main"><button class="toggle-btn" id="btn-${ph.id}" onclick="toggle('${ph.id}')">▶</button><span class="ph-icon">${ph.icon}</span>${ph.name}</div></td>
+    <td class="ph-plan">${ph.plan_start} → ${ph.plan_finish}</td>
+    <td class="ph-actual">${ph.act_start?(ph.act_finish?'<span class="act-done">'+ph.act_start+' → '+ph.act_finish+'</span>':'<span class="act-wip">'+ph.act_start+' → <i>в работе</i></span>'):'<span class="act-none">не начато</span>'}</td>
+    <td class="ph-pct-cell"><div class="mini-bar"><div class="mini-fill ${bc}" style="width:${ph.pct}%"></div></div><div class="pct-num">${ph.pct}%</div></td>
+    <td class="ph-status"><span class="badge ${cfg.badge}">${cfg.label}</span></td>
+    <td class="ph-slip">${slipHtml(ph)}</td><td class="ph-budget">${ph.budget}</td>`;
+  tbody.appendChild(phRow);
+
+  ph.tasks.forEach(t=>{
+    const isGroup=t.kind==='group',tcfg=statusView(t.status,t.pct),tbc=barColor(t.pct,t.status);
+    const tRow=document.createElement('tr');
+    tRow.className='task-row'+(isGroup?' subhead subhead-toggle outline-group':' outline-task');
+    tRow.dataset.phase=ph.id;tRow.dataset.ancestors=(t.ancestors||[]).join(',');tRow.style.display='none';
+    const indent=Math.max(0,(Number(t.level||3)-3))*16;
+    let nameHtml;
+    if(isGroup){
+      const descendants=ph.tasks.filter(x=>x.kind!=='group'&&(x.ancestors||[]).includes(t.group_id)).length;
+      tRow.dataset.group=t.group_id;tRow.style.cursor='pointer';
+      tRow.setAttribute('onclick',`toggleGroup('${ph.id}','${t.group_id}',event)`);
+      nameHtml=`<button class="toggle-btn open" id="groupbtn-${t.group_id}" type="button">▶</button><strong>${t.name}</strong> <span style="color:var(--gray);font-weight:400">(${descendants})</span>`;
+    }else{nameHtml=`<span class="tname">${t.name}</span>`;}
+    tRow.innerHTML=`<td class="task-name-cell" style="padding-left:${40+indent}px">${nameHtml}</td>
+      <td class="task-plan">${t.start} → ${t.finish}</td><td class="task-actual">${actualHtml(t)}</td>
+      <td class="task-pct-cell"><div class="mini-bar"><div class="mini-fill ${tbc}" style="width:${t.pct}%"></div></div><div class="pct-num">${t.pct}%</div></td>
+      <td class="task-status"><span class="badge ${tcfg.badge}" style="font-size:9px">${tcfg.label}</span></td>
+      <td class="task-slip">${slipHtml(t)}</td><td class="task-budget">—</td>`;
+    tbody.appendChild(tRow);
+  });
+});
+function setRows(id){const phaseOpen=state[id];document.querySelectorAll(`tr[data-phase="${id}"]`).forEach(row=>{
+  const ancestors=(row.dataset.ancestors||'').split(',').filter(Boolean);
+  const visible=phaseOpen&&ancestors.every(groupId=>groupState[groupId]!==false);
+  row.style.display=visible?'table-row':'none';
+});}
+function toggle(id){state[id]=!state[id];const btn=document.getElementById('btn-'+id);if(btn)btn.classList.toggle('open',state[id]);setRows(id);}
+function toggleGroup(phaseId,groupId,event){if(event)event.stopPropagation();groupState[groupId]=!groupState[groupId];const btn=document.getElementById('groupbtn-'+groupId);if(btn)btn.classList.toggle('open',groupState[groupId]);setRows(phaseId);}
+function toggleRisks(){var m=document.getElementById('risk-more');var b=document.getElementById('risks-btn');var tr=document.getElementById('risk-toggle-row');if(!m)return;var hidden=(m.style.display==='none');m.style.display=hidden?'block':'none';if(b)b.classList.toggle('open',hidden);if(tr)tr.style.display=hidden?'none':'block';}
+function toggleDocs(){var b=document.getElementById('docs-body');var t=document.getElementById('docs-btn');if(!b)return;var h=(b.style.display==='none');b.style.display=h?'block':'none';if(t)t.classList.toggle('open',h);}
+['3','4','5','6','7'].forEach(id=>toggle(id));
+'@
+$oldRenderEnd = "['3','4','5','6','7'].forEach(id=>toggle(id));"
+$renderPattern = '(?s)const statusCfg\s*=\s*\{.*?' + [regex]::Escape($oldRenderEnd)
+$mainHtml = [regex]::Replace($mainHtml, $renderPattern, [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $outlineTableScript }, 1)
 
 $riskItemsHtml = @(
   foreach ($risk in @($riskSnapshot.critical)) {
