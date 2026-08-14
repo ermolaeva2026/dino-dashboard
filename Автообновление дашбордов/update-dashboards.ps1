@@ -878,6 +878,7 @@ document.addEventListener("DOMContentLoaded",function(){GAL.forEach(function(g,i
 
 $mainHtml = [System.IO.File]::ReadAllText($mainDashboardPath, [System.Text.Encoding]::UTF8)
 $mainHtml = [regex]::Replace($mainHtml, 'Обновлено:\s*\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}', 'Обновлено: ' + $stamp)
+$mainHtml = [regex]::Replace($mainHtml, '(?s)(grid-template-areas:\s*"status status"\s*"gate\s+phases"\s*"risks\s+phases";)(?!\s*grid-template-rows)', '$1' + "`r`n  grid-template-rows: auto auto 1fr;", 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)<script>\s*var G0=.*?</script>\s*<div class="photo-section">', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $galleryScript }, 1)
 $mainHtml = [regex]::Replace($mainHtml, '(?s)const phases\s*=\s*\[.*?\];', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) 'const phases = ' + (ConvertTo-JsLiteral $bigPhases 30) + ';' }, 1)
 
@@ -897,7 +898,7 @@ function slipHtml(t){return t.slipover?'<span style="color:var(--red);font-weigh
 const tbody=document.getElementById('phases-tbody');let state={},groupState={};
 phases.forEach(ph=>{
   state[ph.id]=false;
-  ph.tasks.forEach(t=>{if(t.kind==='group'&&t.group_id)groupState[t.group_id]=true;});
+  ph.tasks.forEach(t=>{if(t.kind==='group'&&t.group_id)groupState[t.group_id]=Number(t.pct)<100;});
   const cfg=statusView(ph.status,ph.pct),bc=barColor(ph.pct,ph.status);
   const phRow=document.createElement('tr');phRow.className='phase-row';
   phRow.innerHTML=`<td class="ph-name"><div class="name-main"><button class="toggle-btn" id="btn-${ph.id}" onclick="toggle('${ph.id}')">▶</button><span class="ph-icon">${ph.icon}</span>${ph.name}</div></td>
@@ -919,7 +920,8 @@ phases.forEach(ph=>{
       const descendants=ph.tasks.filter(x=>x.kind!=='group'&&(x.ancestors||[]).includes(t.group_id)).length;
       tRow.dataset.group=t.group_id;tRow.style.cursor='pointer';
       tRow.setAttribute('onclick',`toggleGroup('${ph.id}','${t.group_id}',event)`);
-      nameHtml=`<button class="toggle-btn open" id="groupbtn-${t.group_id}" type="button">▶</button><strong>${t.name}</strong> <span style="color:var(--gray);font-weight:400">(${descendants})</span>`;
+      const groupOpen=groupState[t.group_id]!==false;
+      nameHtml=`<button class="toggle-btn${groupOpen?' open':''}" id="groupbtn-${t.group_id}" type="button">▶</button><strong>${t.name}</strong> <span style="color:var(--gray);font-weight:400">(${descendants})</span>`;
     }else{nameHtml=`<span class="tname">${t.name}</span>`;}
     tRow.innerHTML=`<td class="task-name-cell" style="padding-left:${40+indent}px">${nameHtml}</td>
       <td class="task-plan">${t.start} → ${t.finish}</td><td class="task-actual">${actualHtml(t)}</td>
@@ -1055,6 +1057,34 @@ $vedRows = @(
   New-VedRow 'Доставка' $vedDelivery $ref
   New-VedRow 'На площадке' $vedOnSite $ref
 ) -join "`r`n        "
+
+function New-GateRow([string]$Name, [string]$Pattern) {
+  $task = Find-Task $allTasks $Pattern
+  if ($task -and $task.pct -ge 100) {
+    $fact = if ($task.actual_finish) { $task.actual_finish } else { $task.e }
+    return '      <div class="gate-item"><div><div class="gate-name">' + (Html-Escape $Name) + '</div><div class="gate-date">Пройден · ' + (Format-DateRu $fact) + '</div></div><span class="badge badge-done">✅ Пройден</span></div>'
+  }
+  $plan = if ($task -and $task.baseline_finish) { $task.baseline_finish } elseif ($task) { $task.e } else { $null }
+  $dateText = if ($plan) { 'Контрольная дата: ' + (Format-DateRu $plan) } else { 'Дата не найдена в КСГ' }
+  return '      <div class="gate-item"><div><div class="gate-name">' + (Html-Escape $Name) + '</div><div class="gate-date">' + $dateText + '</div></div><span class="badge badge-open">⬜ Открыт</span></div>'
+}
+
+$gateRows = @(
+  New-GateRow 'Gate 1 — Переход в Планирование' '^ВЕХА: Проект утвержден$'
+  New-GateRow 'Gate 2 — Переход в Реализацию' '^ВЕХА: Финансирование открыто$'
+  New-GateRow 'Gate 3 — Готовность к монтажу' '^ВЕХА: Аниматроники на площадке парка$'
+  New-GateRow 'Gate 4 — Grand Opening' '^GRAND OPENING'
+) -join "`r`n"
+
+$gateCardHtml = @"
+  <div class="card gate-card">
+    <div class="card-head"><h2>Stage-Gate</h2></div>
+    <div class="gates-list">
+$gateRows
+    </div>
+  </div>
+"@
+$mainHtml = [regex]::Replace($mainHtml, '(?s)<div class="card gate-card">.*?(?=\s*<div class="card risks-card">)', [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $gateCardHtml }, 1)
 
 $infoStrip = @"
 <div class="info-strip">
