@@ -168,11 +168,13 @@ function Read-XlsxSheetRows([string]$Path, [string]$SheetEntry = 'xl/worksheets/
   }
 }
 
-function Get-RiskSnapshot([string]$RiskRoot) {
-  $riskFile = Get-ChildItem -LiteralPath $RiskRoot -File -Filter 'PMO-02_07_Reestr_riskov_PRK-2026-DS*.xlsx' -ErrorAction SilentlyContinue |
+function Get-RiskSnapshot([string[]]$RiskRoots) {
+  $riskFile = @($RiskRoots | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object {
+      Get-ChildItem -LiteralPath $_ -File -Filter 'PMO-02_07_Reestr_riskov_PRK-2026-DS*.xlsx' -ErrorAction SilentlyContinue
+    }) |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
-  if (-not $riskFile) { throw "Не найден актуальный реестр рисков в $RiskRoot" }
+  if (-not $riskFile) { throw "Не найден актуальный реестр рисков в: $($RiskRoots -join ', ')" }
 
   $risks = @()
   foreach ($row in (Read-XlsxSheetRows $riskFile.FullName)) {
@@ -381,6 +383,7 @@ function Get-DocStatus([string[]]$Patterns) {
   $files = @()
   $roots = @(
     $ProjectRoot,
+    (Join-ProjectPath '_Документы PMO'),
     (Join-ProjectPath 'Документы PMO'),
     (Join-ProjectPath 'Прочие документы')
   ) | Where-Object { Test-Path -LiteralPath $_ }
@@ -407,7 +410,10 @@ $mainDashboardPath = Join-ProjectPath 'PRK-2026-DS_Dashboard.html'
 $photoRoot = Join-ProjectPath 'Фотофиксация работ'
 $dataPath = Join-ProjectPath 'PRK-2026-DS_dashboard-data.json'
 $smetaPath = Join-ProjectPath 'Смета_Динопарк_PRK-2026-DS.xlsx'
-$riskRoot = Join-ProjectPath 'Документы PMO'
+$riskRoots = @(
+  (Join-ProjectPath '_Документы PMO'),
+  (Join-ProjectPath 'Документы PMO')
+)
 
 if (-not (Test-Path -LiteralPath $ksgPath)) { throw "Не найден КСГ: $ksgPath" }
 if (-not (Test-Path -LiteralPath $workDashboardPath)) { throw "Не найден рабочий дашборд: $workDashboardPath" }
@@ -415,7 +421,7 @@ if (-not (Test-Path -LiteralPath $mainDashboardPath)) { throw "Не найден
 
 $ref = Get-Date
 $budget = Get-BudgetSnapshot $smetaPath
-$riskSnapshot = Get-RiskSnapshot $riskRoot
+$riskSnapshot = Get-RiskSnapshot $riskRoots
 $tasks = New-Object System.Collections.Generic.List[object]
 $phaseSummaries = New-Object System.Collections.Generic.List[object]
 $bigPhases = New-Object System.Collections.Generic.List[object]
