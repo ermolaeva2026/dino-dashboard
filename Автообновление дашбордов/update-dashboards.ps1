@@ -74,7 +74,10 @@ function Format-Rub2($Value) {
 }
 
 function ConvertTo-JsLiteral($Object, [int]$Depth = 20) {
-  ($Object | ConvertTo-Json -Depth $Depth -Compress).Replace('<', '\u003c').Replace('>', '\u003e').Replace('&', '\u0026')
+  if ($null -eq $Object) { return '[]' }
+  $json = $Object | ConvertTo-Json -Depth $Depth -Compress
+  if ([string]::IsNullOrWhiteSpace($json)) { return '[]' }
+  $json.Replace('<', '\u003c').Replace('>', '\u003e').Replace('&', '\u0026')
 }
 
 function Read-XlsxCellNumber([string]$Path, [string]$SheetEntry, [string]$CellRef) {
